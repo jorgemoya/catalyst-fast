@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 
 import { SORT_OPTIONS } from '~/domain/listing-params';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * The one client island on the listing page.
@@ -25,7 +26,7 @@ export function SortSelect({ defaultSort = 'featured' }: { defaultSort?: string 
 
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-muted">Sort</span>
+      <span className="text-muted">{t('Listing.sort')}</span>
       <select
         className="h-9 rounded-(--radius-control) border border-border bg-background px-2 text-sm disabled:opacity-60"
         disabled={isPending}

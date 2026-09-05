@@ -5,6 +5,7 @@ import { cn } from '~/lib/cn';
 import { Link } from '~/ui/primitives/link';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Facet panel. Entirely server-rendered — every control is a link or a plain GET
@@ -31,7 +32,7 @@ export function Facets({ facets, pathname, searchParams, hasActiveFilters }: Pro
           className="self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
           href={resetFiltersHref(pathname, searchParams)}
         >
-          Reset filters
+          {t('Listing.resetFilters')}
         </Link>
       )}
 
@@ -216,7 +217,7 @@ function RatingFacet({
               )}
             >
               <Rating rating={rating} />
-              <span>& up</span>
+              <span>{t('Listing.ratingAndUp')}</span>
             </Link>
           </li>
         );
@@ -249,7 +250,7 @@ function PriceRange({
       )}
 
       <label className="flex-1">
-        <span className="mb-1 block text-xs text-muted">Min</span>
+        <span className="mb-1 block text-xs text-muted">{t('Listing.min')}</span>
         <input
           className="h-9 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
           defaultValue={min ?? ''}
@@ -260,7 +261,7 @@ function PriceRange({
       </label>
 
       <label className="flex-1">
-        <span className="mb-1 block text-xs text-muted">Max</span>
+        <span className="mb-1 block text-xs text-muted">{t('Listing.max')}</span>
         <input
           className="h-9 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
           defaultValue={max ?? ''}
@@ -274,7 +275,7 @@ function PriceRange({
         className="h-9 shrink-0 rounded-(--radius-control) bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
         type="submit"
       >
-        Apply
+        {t('Listing.apply')}
       </button>
     </form>
   );

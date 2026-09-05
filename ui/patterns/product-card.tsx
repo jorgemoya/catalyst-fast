@@ -6,6 +6,7 @@ import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { PriceLabel } from './price';
+import { t } from '~/lib/i18n/messages';
 
 interface Props {
   product: ProductCardModel;
@@ -47,7 +48,7 @@ export function ProductCard({ product, priority, showRating = true, sizes }: Pro
           />
         ) : (
           <div className="flex size-full items-center justify-center text-xs text-subtle">
-            No image
+            {t('Common.noImage')}
           </div>
         )}
       </Link>

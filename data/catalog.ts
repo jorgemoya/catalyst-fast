@@ -2,11 +2,14 @@ import type { ResultOf } from 'gql.tada';
 import { cacheLife, cacheTag } from 'next/cache';
 
 import type { Breadcrumb } from '~/domain/breadcrumbs';
+import { toSafeHtml } from '~/domain/html';
 import type { SortValue } from '~/domain/listing-params';
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+import { buildConfig } from '~/lib/config';
+import { env } from '~/lib/env';
 
 export type { Breadcrumb };
 
@@ -158,7 +161,12 @@ export async function getCategory(entityId: number): Promise<CategoryPage | null
   return {
     id: category.entityId,
     name: category.name,
-    description: category.description || null,
+    // Sanitized and URL-rewritten here so the *safe* HTML is what gets cached.
+    description: toSafeHtml(
+      category.description,
+      buildConfig.get('urls').cdnUrls[0] ?? '',
+      env.BIGCOMMERCE_STORE_HASH,
+    ),
     path: category.path,
     breadcrumbs: crumbs
       .filter((edge) => edge !== null)
@@ -207,20 +215,20 @@ export async function getBrand(entityId: number): Promise<BrandPage | null> {
  * renders correctly, just with a chrome-only shell until its first request warms
  * the cache.
  *
- * Tune with `STATIC_PARAMS_LIMIT`. Set it to `0` to disable prerendering entirely
- * (fastest builds, no shells) — worth doing on very large catalogs where a
- * post-deploy cache-warm job over the top URLs is the better lever.
+ * Tune with `STATIC_PARAMS_LIMIT`.
+ *
+ * **Cannot be zero.** Cache Components requires `generateStaticParams` to return
+ * at least one result — it needs a concrete param to validate at build time that
+ * the route has no unguarded dynamic access — so the limit clamps to a minimum
+ * of 1. On very large catalogs, set it low and lean on a post-deploy cache-warm
+ * job over the top URLs instead.
  */
-const STATIC_PARAMS_LIMIT = Number(process.env.STATIC_PARAMS_LIMIT ?? 100);
+const STATIC_PARAMS_LIMIT = Math.max(1, Number(process.env.STATIC_PARAMS_LIMIT ?? 100));
 
 export async function getCategoryIds(limit = STATIC_PARAMS_LIMIT): Promise<number[]> {
   'use cache';
   cacheLife('navigation');
   cacheTag(tags.categories);
-
-  if (limit <= 0) {
-    return [];
-  }
 
   const data = await query({ document: CategoryIdsQuery });
 
@@ -241,10 +249,6 @@ export async function getBrandIds(limit = STATIC_PARAMS_LIMIT): Promise<number[]
   'use cache';
   cacheLife('navigation');
   cacheTag(tags.brands);
-
-  if (limit <= 0) {
-    return [];
-  }
 
   // Paginated so the ceiling is ours (`STATIC_PARAMS_LIMIT`) rather than
   // BigCommerce's 50-per-page cap. Sequential by necessity — each request needs

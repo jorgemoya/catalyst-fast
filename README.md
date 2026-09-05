@@ -139,5 +139,19 @@ cursor pagination, breadcrumbs, and canonicalized cache keys
 | Cold filtered request | 1 call — the unrefined facet read shares the default entry |
 | `?utm_source=…&fbclid=…` | 0 calls, identical output — canonicalized away |
 
-Next: Phase 3 — PDP. Unlike categories, products are unbounded, so
-`generateStaticParams` seeds a top-N slice rather than the whole catalog.
+**Phase 3 complete** — product detail page with all 11 option types, gallery,
+client-owned variant selection, specs, reviews, related products, and JSON-LD
+(`docs/phase-3-pdp.md`).
+
+| | |
+| --- | --- |
+| In the PDP shell | title, gallery, price, stock, CTA, specs, description |
+| Warm request | 0 BigCommerce calls |
+| Cold request | 5 product-scoped queries (Catalyst: 7) |
+| Seeded products | `○ (Static)` — fully prerendered, 30s revalidate |
+
+Tests: `pnpm test` (105 unit) and `pnpm e2e` (21 Playwright). See
+`docs/testing.md` — five bugs have shipped past typecheck, lint, and build.
+
+Next: Phase 4 — cart and checkout handoff. Establishes the
+`updateTag` + `refresh()` invalidation contract.

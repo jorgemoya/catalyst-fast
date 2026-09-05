@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 /**
  * Canonicalization of listing URL params into a stable cache key.
  *
@@ -16,7 +14,7 @@ import { z } from 'zod';
  *   2. Sort keys and multi-values, so `?b=2&a=1` and `?a=1&b=2` are one entry.
  *   3. Drop values equal to the default — `sort=featured` and page 1 collapse to
  *      absent, which is what makes the unfiltered key the shared common case.
- *   4. Clamp pagination depth.
+ *   4. Clamp the page size, and never carry both cursors at once.
  *   5. Above a facet-count threshold, bypass the cache entirely (see
  *      `shouldBypassCache`). Deep filter combinations are long-tail by nature and
  *      would otherwise evict the entries that actually get reused.
@@ -41,9 +39,6 @@ const SORT_VALUES = SORT_OPTIONS.map((option) => option.value);
 
 export const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 48;
-
-/** Beyond this, cursors get unwieldy and traffic is negligible. */
-const MAX_PAGE_DEPTH = 20;
 
 /** Above this many active facet groups, skip the cache. */
 const MAX_CACHEABLE_FACETS = 4;
@@ -265,7 +260,3 @@ export function defaultKey(key: ListingKey): ListingKey {
   };
 }
 
-/** Guards `MAX_PAGE_DEPTH` for the offset-style page links the UI renders. */
-export const clampPage = (page: number): number => Math.min(Math.max(1, page), MAX_PAGE_DEPTH);
-
-export const SortParamSchema = z.enum(SORT_VALUES as unknown as [SortValue, ...SortValue[]]);

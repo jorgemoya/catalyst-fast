@@ -12,6 +12,7 @@ import {
   ToolbarRegion,
 } from '~/ui/layout/listing';
 import { Skeleton } from '~/ui/primitives/skeleton';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Brand listing. Same composition as category — the only difference is which
@@ -67,8 +68,8 @@ async function BrandListing({ params, searchParams }: Props) {
   const options = { brandId: id };
   const emptyState = (
     <EmptyState
-      subtitle="Try removing some filters, or browse another brand."
-      title="No products found"
+      subtitle={t('Listing.emptyBrand')}
+      title={t('Listing.emptyTitle')}
     />
   );
 

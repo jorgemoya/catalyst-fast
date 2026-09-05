@@ -103,8 +103,3 @@ function assertProfileFloors(): void {
 }
 
 assertProfileFloors();
-
-/** Profiles that land in the prerendered static shell. Informational, and used by tests. */
-export const shellProfiles = Object.entries(cacheProfiles)
-  .filter(([, profile]) => profile.stale >= MIN_SHELL_STALE)
-  .map(([name]) => name);

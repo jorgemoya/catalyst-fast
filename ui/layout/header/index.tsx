@@ -7,6 +7,7 @@ import { Skeleton } from '~/ui/primitives/skeleton';
 import { CategoryNav, CategoryNavSkeleton } from './category-nav';
 import { MobileNav } from './mobile-nav';
 import { StoreLogo } from './store-logo';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Site header.
@@ -32,21 +33,21 @@ export function Header() {
           <StoreLogo className="shrink-0" />
         </Suspense>
 
-        <nav aria-label="Main" className="flex-1">
+        <nav aria-label={t('Header.mainNav')} className="flex-1">
           <Suspense fallback={<CategoryNavSkeleton />}>
             <CategoryNav />
           </Suspense>
         </nav>
 
         <div className="flex shrink-0 items-center gap-1">
-          <IconLink href="/search" label="Search">
+          <IconLink href="/search" label={t('Header.search')}>
             <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
               <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
               <path d="m20 20-3.5-3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
             </svg>
           </IconLink>
 
-          <IconLink href="/login" label="Account">
+          <IconLink href="/login" label={t('Header.account')}>
             <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
               <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
               <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
@@ -54,7 +55,7 @@ export function Header() {
           </IconLink>
 
           {/* Phase 4 replaces this with <CartBadge/> in its own Suspense boundary. */}
-          <IconLink href="/cart" label="Cart">
+          <IconLink href="/cart" label={t('Header.cart')}>
             <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
               <path
                 d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.55L20.5 8H6"
@@ -120,7 +121,7 @@ async function MobileNavContents() {
         {categories.length > visible.length && (
           <li className="mt-2 border-t border-border pt-2">
             <Link className="block py-2 text-sm font-medium text-primary" href="/shop-all/">
-              All categories
+              {t('Common.allCategories')}
             </Link>
           </li>
         )}

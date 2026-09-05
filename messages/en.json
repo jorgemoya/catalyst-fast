@@ -1,8 +1,80 @@
 {
   "Common": {
     "storeName": "Catalyst Fast",
-    "loading": "Loading",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "home": "Home",
+    "shopAll": "Shop all",
+    "allCategories": "All categories",
+    "noImage": "No image"
+  },
+  "Header": {
+    "mainNav": "Main",
+    "search": "Search",
+    "account": "Account",
+    "cart": "Cart",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "menu": "Menu",
+    "shopAllCategory": "Shop all {category}"
+  },
+  "Footer": {
+    "shop": "Shop",
+    "brands": "Brands",
+    "about": "About",
+    "contact": "Contact",
+    "copyright": "© {year} {storeName}. All rights reserved."
+  },
+  "Listing": {
+    "breadcrumb": "Breadcrumb",
+    "pagination": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "sort": "Sort",
+    "resetFilters": "Reset filters",
+    "subcategories": "Subcategories",
+    "browse": "Browse",
+    "min": "Min",
+    "max": "Max",
+    "apply": "Apply",
+    "ratingAndUp": "& up",
+    "productCount": "{count, plural, one {# product} other {# products}}",
+    "emptyTitle": "No products found",
+    "emptyCategory": "Try removing some filters, or browse another category.",
+    "emptyBrand": "Try removing some filters, or browse another brand."
+  },
+  "Product": {
+    "description": "Description",
+    "specifications": "Specifications",
+    "warranty": "Warranty",
+    "videos": "Videos",
+    "reviews": "Reviews",
+    "relatedProducts": "You might also like",
+    "sku": "SKU",
+    "condition": "Condition",
+    "weight": "Weight",
+    "viewImage": "View image {index} of {total}",
+    "chooseOption": "Choose an option",
+    "selectOptions": "Select {options}",
+    "addToCart": "Add to cart",
+    "preorder": "Pre-order",
+    "outOfStock": "Out of stock",
+    "unavailable": "Unavailable",
+    "onBackorder": "{count} on backorder",
+    "exceedsStock": "Not enough stock for the requested quantity",
+    "inStockCount": "{count} in stock",
+    "onlyLeft": "Only {count} left",
+    "noReviews": "No reviews yet.",
+    "loadMoreReviews": "Load more reviews",
+    "loadingReviews": "Loading…"
+  },
+  "Home": {
+    "heroTitle": "Everything you need, nothing you don’t.",
+    "heroSubtitle": "A storefront that loads instantly because almost all of it is already rendered.",
+    "featuredProducts": "Featured products",
+    "newArrivals": "New arrivals",
+    "seeWhatsNew": "See what’s new",
+    "noFeatured": "No featured products yet.",
+    "noNewest": "No new products yet."
   },
   "Error": {
     "title": "Something went wrong",

@@ -3,6 +3,7 @@
 import { NavigationMenu } from '@base-ui/react/navigation-menu';
 import NextLink from 'next/link';
 import type { ReactNode } from 'react';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * The interactive shell of the mega-menu — and nothing else.
@@ -96,7 +97,7 @@ export function NavMenuItem({
           className="mb-4 inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline"
           render={<NextLink href={href} />}
         >
-          Shop all {label}
+          {t('Header.shopAllCategory', { category: label })}
         </NavigationMenu.Link>
         {children}
       </NavigationMenu.Content>

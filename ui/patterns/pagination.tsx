@@ -1,7 +1,8 @@
-import type { Pagination as PaginationModel } from '~/data/search';
+import { isSinglePage, type Pagination as PaginationModel } from '~/domain/pagination';
 import type { RawSearchParams } from '~/domain/listing-params';
 import { cursorHref } from '~/domain/listing-url';
 import { Link } from '~/ui/primitives/link';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Cursor pagination, server-rendered as links.
@@ -25,23 +26,23 @@ export function Pagination({
 }) {
   const { hasNextPage, hasPreviousPage, startCursor, endCursor } = pagination;
 
-  if (!hasNextPage && !hasPreviousPage) {
+  if (isSinglePage(pagination)) {
     return null;
   }
 
   return (
-    <nav aria-label="Pagination" className="mt-12 flex items-center justify-center gap-2">
+    <nav aria-label={t('Listing.pagination')} className="mt-12 flex items-center justify-center gap-2">
       {hasPreviousPage && startCursor ? (
         <Link
           className="inline-flex h-10 items-center rounded-(--radius-control) border border-border px-4 text-sm font-medium hover:bg-accent"
           href={cursorHref(pathname, searchParams, 'before', startCursor)}
           rel="prev"
         >
-          Previous
+          {t('Listing.previous')}
         </Link>
       ) : (
         <span className="inline-flex h-10 items-center rounded-(--radius-control) border border-border px-4 text-sm text-subtle">
-          Previous
+          {t('Listing.previous')}
         </span>
       )}
 
@@ -51,11 +52,11 @@ export function Pagination({
           href={cursorHref(pathname, searchParams, 'after', endCursor)}
           rel="next"
         >
-          Next
+          {t('Listing.next')}
         </Link>
       ) : (
         <span className="inline-flex h-10 items-center rounded-(--radius-control) border border-border px-4 text-sm text-subtle">
-          Next
+          {t('Listing.next')}
         </span>
       )}
     </nav>

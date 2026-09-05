@@ -308,7 +308,7 @@ const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
  * disable prefetching across the whole storefront. Those requests are exempt;
  * they can only originate from a page the router already resolved legitimately.
  */
-const INTERNAL_ROUTE_ONLY = /^\/(?:category|brand)\/\d+\/?$/;
+const INTERNAL_ROUTE_ONLY = /^\/(?:category|brand|product)\/\d+\/?$/;
 
 const isRscRequest = (request: NextRequest): boolean =>
   request.headers.get('RSC') === '1' || request.headers.get('Next-Router-Prefetch') === '1';

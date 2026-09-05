@@ -100,6 +100,9 @@ describe('canonicalizeListingParams', () => {
   });
 
   describe('rule 4: bounds', () => {
+    // Note this bounds the *page size*, not pagination depth. Cursors are opaque,
+    // so there is no page number to cap — a crawler can walk arbitrarily deep.
+    // `shouldBypassCache` is what stops that filling the cache.
     it('clamps limit to the maximum', () => {
       expect(canonicalizeListingParams({ limit: '9999' }, cat).limit).toBeLessThanOrEqual(48);
     });

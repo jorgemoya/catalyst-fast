@@ -2,6 +2,7 @@
 
 import { Dialog } from '@base-ui/react/dialog';
 import type { ReactNode } from 'react';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Mobile drawer. A separate island from `NavMenu` on purpose — desktop visitors
@@ -12,7 +13,7 @@ export function MobileNav({ children }: { children: ReactNode }) {
   return (
     <Dialog.Root>
       <Dialog.Trigger
-        aria-label="Open menu"
+        aria-label={t('Header.openMenu')}
         className="inline-flex size-9 items-center justify-center rounded-(--radius-control) hover:bg-accent lg:hidden"
       >
         <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
@@ -24,9 +25,9 @@ export function MobileNav({ children }: { children: ReactNode }) {
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-(--duration-fast) data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Popup className="fixed inset-y-0 start-0 z-50 flex w-80 max-w-[85vw] flex-col overflow-y-auto bg-background p-6 transition-transform duration-(--duration-slow) ease-(--ease-out-quart) data-ending-style:-translate-x-full data-starting-style:-translate-x-full">
           <div className="mb-6 flex items-center justify-between">
-            <Dialog.Title className="text-sm font-semibold">Menu</Dialog.Title>
+            <Dialog.Title className="text-sm font-semibold">{t('Header.menu')}</Dialog.Title>
             <Dialog.Close
-              aria-label="Close menu"
+              aria-label={t('Header.closeMenu')}
               className="inline-flex size-8 items-center justify-center rounded-(--radius-control) hover:bg-accent"
             >
               <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">

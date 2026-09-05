@@ -108,3 +108,42 @@ KV_MEMORY_MAX_ENTRIES=4096   # raise for large catalogs; entries are a few hundr
 - **No load testing has been done.** Every number here is measured on a
   4-category demo store or derived from per-entity costs. The extrapolations are
   arithmetic, not observation.
+
+## What prerendering actually buys (measured)
+
+Prompted by "are we building all the product URLs at build time?" — no, and the
+measurement corrected an assumption worth recording.
+
+**Products are seeded to a small top-N**, `PRODUCT_STATIC_PARAMS_LIMIT` (default
+10), not the catalog. Everything else renders on demand via `dynamicParams` and
+is cached from then on. With 1000 products, 990 are ISR.
+
+**Seeding buys first-paint latency, not origin calls.** Measured on a fresh build
+with three products seeded, each URL requested for the first time:
+
+| | first request | BigCommerce calls |
+| --- | --- | --- |
+| Seeded product (`/tote-bag/`) | **168ms** | 5 |
+| Unseeded product (`/birds-of-paradise/`) | **537ms** | 5 |
+| Either, warm | 2–4ms | **0** |
+
+Both make the same five product queries. The seeded one serves its prerendered
+HTML immediately and revalidates behind the response; the unseeded one blocks on
+the render. So prerendering is a **latency** optimization for the first visitor,
+not a way to avoid origin load.
+
+The reason is the same one behind the cold-cache-after-deploy risk: **`use cache`
+entries do not survive the build into the running server.** The build produces
+HTML, not a warm data cache. This generalizes — no amount of `generateStaticParams`
+reduces the origin calls a fresh deploy pays; only a post-deploy cache-warm does.
+
+At 1000 products, `PRODUCT_STATIC_PARAMS_LIMIT=1000` would mean ~20 sequential
+id-fetch round trips plus ~5000 render-time calls, on the order of minutes of
+build-time network against a rate-limited API — for a first-paint win on pages
+that may never be visited. Keep the limit small and warm real top URLs after
+deploy instead.
+
+**Bug found while checking this:** `getProductIds` requested
+`Math.min(50, limit)` with no pagination, so `PRODUCT_STATIC_PARAMS_LIMIT=200`
+silently seeded 50. It now paginates like `getBrandIds`, so the limit means what
+it says.

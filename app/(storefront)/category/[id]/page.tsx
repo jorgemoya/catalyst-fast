@@ -14,6 +14,7 @@ import {
   ToolbarRegion,
 } from '~/ui/layout/listing';
 import { Skeleton } from '~/ui/primitives/skeleton';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Category listing. Reached via a proxy rewrite from the merchant's vanity URL
@@ -82,8 +83,8 @@ async function CategoryListing({ params, searchParams }: Props) {
   const options = { categoryId: id, defaultSort: category.defaultSort };
   const emptyState = (
     <EmptyState
-      subtitle="Try removing some filters, or browse another category."
-      title="No products found"
+      subtitle={t('Listing.emptyCategory')}
+      title={t('Listing.emptyTitle')}
     />
   );
 

@@ -13,13 +13,6 @@ export interface Pagination {
   endCursor: string | null;
 }
 
-export const EMPTY_PAGINATION: Pagination = {
-  hasNextPage: false,
-  hasPreviousPage: false,
-  startCursor: null,
-  endCursor: null,
-};
-
 /** True when there is nothing to render — both directions are dead ends. */
 export const isSinglePage = (pagination: Pagination): boolean =>
   !pagination.hasNextPage && !pagination.hasPreviousPage;

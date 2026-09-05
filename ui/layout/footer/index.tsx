@@ -7,6 +7,7 @@ import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { SocialLinks } from './social-links';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Site footer. Entirely server-rendered from two cached reads, both of which are
@@ -57,18 +58,18 @@ async function FooterContents() {
     .map(({ label, href }) => ({ label, href }));
 
   if (categories.length > shopLinks.length) {
-    shopLinks.push({ label: 'All categories', href: '/shop-all/' });
+    shopLinks.push({ label: t('Common.allCategories'), href: '/shop-all/' });
   }
 
   return (
     <>
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-        <FooterColumn heading="Shop" links={shopLinks} />
-        <FooterColumn heading="Brands" links={brands} />
-        <FooterColumn heading="About" links={pages} />
+        <FooterColumn heading={t('Footer.shop')} links={shopLinks} />
+        <FooterColumn heading={t('Footer.brands')} links={brands} />
+        <FooterColumn heading={t('Footer.about')} links={pages} />
 
         <div className="flex flex-col gap-3">
-          <h2 className="text-2xs font-semibold tracking-wide uppercase">Contact</h2>
+          <h2 className="text-2xs font-semibold tracking-wide uppercase">{t('Footer.contact')}</h2>
 
           {settings.contact && (
             <address className="flex flex-col gap-1 text-sm text-muted not-italic">
@@ -95,7 +96,7 @@ async function FooterContents() {
       </div>
 
       <div className="mt-12 border-t border-border pt-6 text-xs text-muted">
-        © {year} {settings.storeName}. All rights reserved.
+        {t('Footer.copyright', { year, storeName: settings.storeName })}
       </div>
     </>
   );

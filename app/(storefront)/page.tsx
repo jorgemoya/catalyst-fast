@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { getFeaturedProducts, getNewestProducts } from '~/data/products';
 import { Link } from '~/ui/primitives/link';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Home page.
@@ -23,15 +24,15 @@ export default function HomePage() {
       <Hero />
 
       <Section
-        cta={{ href: '/shop-all/', label: 'Shop all' }}
-        title="Featured products"
+        cta={{ href: '/shop-all/', label: t('Common.shopAll') }}
+        title={t('Home.featuredProducts')}
       >
         <Suspense fallback={<ProductGridSkeleton count={4} />}>
           <FeaturedProducts />
         </Suspense>
       </Section>
 
-      <Section cta={{ href: '/shop-all/?sort=newest', label: 'See what’s new' }} title="New arrivals">
+      <Section cta={{ href: '/shop-all/?sort=newest', label: t('Home.seeWhatsNew') }} title={t('Home.newArrivals')}>
         <Suspense fallback={<ProductGridSkeleton count={4} />}>
           <NewestProducts />
         </Suspense>
@@ -45,16 +46,16 @@ function Hero() {
     <section className="page-container py-16 sm:py-24">
       <div className="max-w-2xl">
         <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-          Everything you need, nothing you don’t.
+          {t('Home.heroTitle')}
         </h1>
         <p className="mt-4 text-lg text-muted text-pretty">
-          A storefront that loads instantly because almost all of it is already rendered.
+          {t('Home.heroSubtitle')}
         </p>
         <Link
           className="mt-8 inline-flex h-11 items-center rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors duration-(--duration-fast) hover:bg-primary-hover"
           href="/shop-all/"
         >
-          Shop all
+          {t('Common.shopAll')}
         </Link>
       </div>
     </section>
@@ -92,7 +93,7 @@ async function FeaturedProducts() {
   const products = await getFeaturedProducts(8);
 
   if (products.length === 0) {
-    return <p className="text-sm text-muted">No featured products yet.</p>;
+    return <p className="text-sm text-muted">{t('Home.noFeatured')}</p>;
   }
 
   // `priority` only here: this is the first grid on the page, so its first row
@@ -104,7 +105,7 @@ async function NewestProducts() {
   const products = await getNewestProducts(8);
 
   if (products.length === 0) {
-    return <p className="text-sm text-muted">No new products yet.</p>;
+    return <p className="text-sm text-muted">{t('Home.noNewest')}</p>;
   }
 
   return <ProductGrid products={products} />;

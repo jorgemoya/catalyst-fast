@@ -17,6 +17,7 @@ import { Pagination } from '~/ui/patterns/pagination';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
 import { SortSelect } from '~/ui/patterns/sort-select';
 import { Skeleton } from '~/ui/primitives/skeleton';
+import { t } from '~/lib/i18n/messages';
 
 /**
  * Listing page composition, shared by category, brand, and (Phase 5) search.
@@ -106,8 +107,8 @@ export function SubcategoryLinks({ items }: { items: Breadcrumb[] }) {
   }
 
   return (
-    <nav aria-label="Subcategories" className="mb-6 border-b border-border pb-4">
-      <h2 className="mb-3 text-sm font-semibold">Browse</h2>
+    <nav aria-label={t('Listing.subcategories')} className="mb-6 border-b border-border pb-4">
+      <h2 className="mb-3 text-sm font-semibold">{t('Listing.browse')}</h2>
       <ul className="flex flex-col gap-1.5">
         {items.map((item) => (
           <li key={item.href}>
@@ -310,7 +311,7 @@ function CountText({ total }: { total: number }) {
     // so a text-matching selector is ambiguous by construction. The testid gives
     // tests a stable hook; `.last()` picks the streamed value.
     <p className="text-sm text-muted" data-testid="result-count">
-      {total} {total === 1 ? 'product' : 'products'}
+      {t('Listing.productCount', { count: total })}
     </p>
   );
 }
