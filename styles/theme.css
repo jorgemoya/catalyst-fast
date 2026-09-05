@@ -1,0 +1,98 @@
+/**
+ * Design tokens. This file IS the design-system contract — Tailwind 4 is
+ * CSS-first, so there is no tailwind.config.js to hold a second source of truth.
+ *
+ * Deliberately different from Catalyst's approach in one way: there is exactly
+ * one token scale here. Catalyst's sections each declared their own private
+ * namespace (`--product-detail-border`, `--cart-counter-background`, 14 of them
+ * in the cart section alone), which was undiscoverable — documented only in doc
+ * comments, with no types — and duplicative. Components use the scale below or
+ * they get a new token added to it.
+ */
+
+@theme {
+  /* ── Color ───────────────────────────────────────────────────────────────
+     OKLCH rather than HSL: perceptually uniform, so a lightness ramp reads as
+     evenly spaced, and it reaches colors sRGB hex can't express on wide-gamut
+     displays. */
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(15% 0 0);
+
+  --color-surface: oklch(98.5% 0 0);
+  --color-surface-raised: oklch(100% 0 0);
+
+  --color-border: oklch(92% 0 0);
+  --color-border-strong: oklch(85% 0 0);
+
+  --color-muted: oklch(55% 0 0);
+  --color-subtle: oklch(70% 0 0);
+
+  --color-primary: oklch(52% 0.19 264);
+  --color-primary-hover: oklch(46% 0.19 264);
+  --color-primary-foreground: oklch(100% 0 0);
+
+  --color-accent: oklch(94% 0.03 264);
+
+  --color-success: oklch(60% 0.15 150);
+  --color-warning: oklch(75% 0.15 80);
+  --color-error: oklch(58% 0.22 25);
+  --color-info: oklch(60% 0.15 240);
+
+  /* Commerce-specific semantics. Naming these as tokens keeps sale-price red and
+     error red independently adjustable — they are not the same decision. */
+  --color-price-sale: oklch(55% 0.2 25);
+  --color-in-stock: oklch(58% 0.14 150);
+  --color-out-of-stock: oklch(60% 0 0);
+
+  /* ── Type ────────────────────────────────────────────────────────────────
+     Wired to next/font in app/layout.tsx, which self-hosts and preloads them —
+     no external font request, which also keeps the CSP tight. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-2xs: 0.6875rem;
+
+  /* ── Radius ──────────────────────────────────────────────────────────── */
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────
+     One easing curve and two durations. Anything slower than `--duration-slow`
+     on a storefront reads as lag rather than polish. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 120ms;
+  --duration-slow: 240ms;
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  --spacing-page: 1.5rem;
+  --container-page: 90rem;
+}
+
+/* Dark theme. Tokens only — no component ever branches on theme itself. */
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background: oklch(15% 0 0);
+      --color-foreground: oklch(97% 0 0);
+
+      --color-surface: oklch(19% 0 0);
+      --color-surface-raised: oklch(23% 0 0);
+
+      --color-border: oklch(28% 0 0);
+      --color-border-strong: oklch(36% 0 0);
+
+      --color-muted: oklch(65% 0 0);
+      --color-subtle: oklch(50% 0 0);
+
+      --color-primary: oklch(70% 0.16 264);
+      --color-primary-hover: oklch(76% 0.16 264);
+      --color-primary-foreground: oklch(15% 0 0);
+
+      --color-accent: oklch(28% 0.05 264);
+
+      --color-price-sale: oklch(70% 0.17 25);
+      --color-in-stock: oklch(70% 0.13 150);
+      --color-out-of-stock: oklch(55% 0 0);
+    }
+  }
+}

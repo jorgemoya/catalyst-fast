@@ -1,0 +1,316 @@
+import type { ReactNode } from 'react';
+import { Suspense } from 'react';
+
+import type { Breadcrumb } from '~/domain/breadcrumbs';
+import { getFacets, searchListing } from '~/data/search';
+import { getStoreSettings } from '~/data/settings';
+import {
+  canonicalizeListingParams,
+  type CanonicalizeOptions,
+  defaultKey,
+  isFiltered,
+  type RawSearchParams,
+} from '~/domain/listing-params';
+import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
+import { Facets, FacetsSkeleton } from '~/ui/patterns/facets';
+import { Pagination } from '~/ui/patterns/pagination';
+import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
+import { SortSelect } from '~/ui/patterns/sort-select';
+import { Skeleton } from '~/ui/primitives/skeleton';
+
+/**
+ * Listing page composition, shared by category, brand, and (Phase 5) search.
+ *
+ * **Slot-based rather than prop-based.** An earlier version took eight props
+ * including empty-state copy, which is the beginning of exactly the
+ * section-component shape this project exists to avoid — every new consumer adds
+ * a prop, and the component grows toward Catalyst's 27-prop
+ * `ProductsListSection`. Callers now compose: `<ListingLayout>` owns structure,
+ * `<ListingLayout.Header>` and friends take children.
+ *
+ * Two properties make the caching work:
+ *
+ * **1. `searchParams` is never awaited above a Suspense boundary.** It arrives as
+ * a promise and is passed down; each region awaits it at the leaf. Awaiting it
+ * here would make the whole page dynamic for every visitor, including the ~95%
+ * who arrive with no filters.
+ *
+ * **2. Each dynamic region's Suspense fallback is a cached component** rendering
+ * the *unfiltered* view. So the prerendered shell holds real products, facets,
+ * and counts rather than skeletons, and a filtered request streams the refined
+ * version over the top. The inner boundary is required because a fallback must
+ * not itself suspend — verified in Phase 0, spike 3.
+ *
+ * Every data-reading region calls `searchListing` with the same canonical key, so
+ * they share one cache entry and one origin request.
+ */
+
+interface LayoutProps {
+  children: ReactNode;
+}
+
+export function ListingLayout({ children }: LayoutProps) {
+  return <div className="page-container py-8">{children}</div>;
+}
+
+function Header({
+  breadcrumbs,
+  title,
+  description,
+}: {
+  breadcrumbs?: Breadcrumb[];
+  title: string;
+  description?: string | null;
+}) {
+  return (
+    <>
+      {breadcrumbs && breadcrumbs.length > 0 && <Breadcrumbs items={breadcrumbs} />}
+      <header className="mt-4 mb-8">
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        {description && (
+          <div
+            className="mt-3 max-w-prose text-sm text-muted [&_a]:underline"
+            // Category descriptions are merchant-authored WYSIWYG HTML.
+            dangerouslySetInnerHTML={{ __html: description }}
+          />
+        )}
+      </header>
+    </>
+  );
+}
+
+function Body({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-8 lg:flex-row">
+      <aside className="w-full shrink-0 lg:w-64">{sidebar}</aside>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+ListingLayout.Header = Header;
+ListingLayout.Body = Body;
+
+/**
+ * Subcategory navigation, rendered above the facets.
+ *
+ * Distinct from the Category *facet*: this is a link group built from the
+ * category tree, so it navigates to a child category's own page rather than
+ * refining the current result set. Catalyst renders both for the same reason —
+ * "browse into Succulents" and "narrow these results to Succulents" are different
+ * intents, and only the former produces a canonical, indexable URL.
+ */
+export function SubcategoryLinks({ items }: { items: Breadcrumb[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <nav aria-label="Subcategories" className="mb-6 border-b border-border pb-4">
+      <h2 className="mb-3 text-sm font-semibold">Browse</h2>
+      <ul className="flex flex-col gap-1.5">
+        {items.map((item) => (
+          <li key={item.href}>
+            <a className="text-sm text-muted hover:text-foreground" href={item.href}>
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+interface RegionProps {
+  options: CanonicalizeOptions;
+  pathname: string;
+  searchParams: Promise<RawSearchParams>;
+}
+
+/** Facet panel: refined when filters are present, cached-default otherwise. */
+export function FacetRegion({ options, pathname, searchParams }: RegionProps) {
+  return (
+    <Suspense
+      fallback={
+        <Suspense fallback={<FacetsSkeleton />}>
+          <DefaultFacets options={options} pathname={pathname} />
+        </Suspense>
+      }
+    >
+      <RefinedFacets options={options} pathname={pathname} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+export function ToolbarRegion({
+  options,
+  searchParams,
+}: {
+  options: CanonicalizeOptions;
+  searchParams: Promise<RawSearchParams>;
+}) {
+  return (
+    <div className="mb-6 flex items-center justify-between gap-4">
+      <Suspense
+        fallback={
+          <Suspense fallback={<Skeleton className="h-5 w-24" />}>
+            <DefaultResultCount options={options} />
+          </Suspense>
+        }
+      >
+        <RefinedResultCount options={options} searchParams={searchParams} />
+      </Suspense>
+
+      <SortSelect defaultSort={options.defaultSort} />
+    </div>
+  );
+}
+
+export function GridRegion({
+  options,
+  pathname,
+  searchParams,
+  emptyState,
+}: RegionProps & { emptyState: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <Suspense fallback={<ProductGridSkeleton count={8} />}>
+          <DefaultGrid emptyState={emptyState} options={options} />
+        </Suspense>
+      }
+    >
+      <RefinedGrid
+        emptyState={emptyState}
+        options={options}
+        pathname={pathname}
+        searchParams={searchParams}
+      />
+    </Suspense>
+  );
+}
+
+export function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="rounded-(--radius-card) border border-border py-16 text-center">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-2 text-sm text-muted">{subtitle}</p>
+    </div>
+  );
+}
+
+/**
+ * Whether product cards show star ratings. Merchants can disable reviews or the
+ * rating display independently, and Catalyst gates on both — showing stars on a
+ * store with reviews turned off would be inventing UI the merchant switched off.
+ */
+async function shouldShowRating(): Promise<boolean> {
+  const settings = await getStoreSettings();
+
+  return settings.reviewsEnabled && settings.showProductRating;
+}
+
+/* ── Prerendered variants: no `searchParams` access anywhere below here ────── */
+
+async function DefaultGrid({
+  options,
+  emptyState,
+}: {
+  options: CanonicalizeOptions;
+  emptyState: ReactNode;
+}) {
+  const key = defaultKey(canonicalizeListingParams({}, options));
+  const [listing, showRating] = await Promise.all([searchListing(key), shouldShowRating()]);
+
+  if (listing.products.length === 0) {
+    return emptyState;
+  }
+
+  return <ProductGrid priority products={listing.products} showRating={showRating} />;
+}
+
+async function DefaultResultCount({ options }: { options: CanonicalizeOptions }) {
+  const { totalItems } = await searchListing(defaultKey(canonicalizeListingParams({}, options)));
+
+  return <CountText total={totalItems} />;
+}
+
+/**
+ * With no refinement applied, the "all facets" and "refined facets" reads in
+ * `getFacets` resolve to the same cache entry, so nothing is disabled and this
+ * costs one origin request — the same one `DefaultGrid` already used.
+ */
+async function DefaultFacets({
+  options,
+  pathname,
+}: {
+  options: CanonicalizeOptions;
+  pathname: string;
+}) {
+  const facets = await getFacets(defaultKey(canonicalizeListingParams({}, options)));
+
+  return <Facets facets={facets} hasActiveFilters={false} pathname={pathname} searchParams={{}} />;
+}
+
+/* ── Request-time variants ────────────────────────────────────────────────── */
+
+async function RefinedGrid({
+  options,
+  pathname,
+  searchParams,
+  emptyState,
+}: RegionProps & { emptyState: ReactNode }) {
+  const raw = await searchParams;
+  const key = canonicalizeListingParams(raw, options);
+  const [listing, showRating] = await Promise.all([searchListing(key), shouldShowRating()]);
+
+  if (listing.products.length === 0) {
+    return emptyState;
+  }
+
+  return (
+    <>
+      <ProductGrid priority products={listing.products} showRating={showRating} />
+      <Pagination pagination={listing.pagination} pathname={pathname} searchParams={raw} />
+    </>
+  );
+}
+
+async function RefinedResultCount({
+  options,
+  searchParams,
+}: {
+  options: CanonicalizeOptions;
+  searchParams: Promise<RawSearchParams>;
+}) {
+  const key = canonicalizeListingParams(await searchParams, options);
+  const { totalItems } = await searchListing(key);
+
+  return <CountText total={totalItems} />;
+}
+
+async function RefinedFacets({ options, pathname, searchParams }: RegionProps) {
+  const raw = await searchParams;
+  const key = canonicalizeListingParams(raw, options);
+  const facets = await getFacets(key);
+
+  return (
+    <Facets
+      facets={facets}
+      hasActiveFilters={isFiltered(key)}
+      pathname={pathname}
+      searchParams={raw}
+    />
+  );
+}
+
+function CountText({ total }: { total: number }) {
+  return (
+    // A PPR response contains both the cached fallback and the streamed result,
+    // so a text-matching selector is ambiguous by construction. The testid gives
+    // tests a stable hook; `.last()` picks the streamed value.
+    <p className="text-sm text-muted" data-testid="result-count">
+      {total} {total === 1 ? 'product' : 'products'}
+    </p>
+  );
+}

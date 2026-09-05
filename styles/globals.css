@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+@import './theme.css';
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    /* Prevents layout shift between pages that scroll and pages that don't —
+       which on a storefront is most navigations (short PDP, long PLP). */
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+
+    /* The header is sticky and 4rem tall, so anything scrolled into view lands
+       underneath it — anchor links, keyboard focus, and `scrollIntoView` all
+       target an element the user then can't see or click. Reserving the header's
+       height plus a little breathing room fixes all three. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Visible focus for keyboard users only, on every interactive element. */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  /* Skeletons and streamed-in content are the main animation on the site, and
+     they run during page load — exactly when reduced-motion matters most. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility page-container {
+  margin-inline: auto;
+  max-inline-size: var(--container-page);
+  padding-inline: var(--spacing-page);
+}

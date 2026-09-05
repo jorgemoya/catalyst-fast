@@ -1,0 +1,21 @@
+{
+  "Common": {
+    "storeName": "Catalyst Fast",
+    "loading": "Loading",
+    "skipToContent": "Skip to content"
+  },
+  "Error": {
+    "title": "Something went wrong",
+    "subtitle": "An unexpected error occurred. Please try again.",
+    "retry": "Try again"
+  },
+  "NotFound": {
+    "title": "Page not found",
+    "subtitle": "The page you were looking for doesn't exist or has moved.",
+    "home": "Back to home"
+  },
+  "Maintenance": {
+    "title": "We'll be right back",
+    "subtitle": "The store is temporarily unavailable while we make some changes."
+  }
+}

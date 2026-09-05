@@ -1,0 +1,9 @@
+{
+  "schema": "./bigcommerce.graphql",
+  "documents": ["./data/**/*.ts", "./lib/bigcommerce/fragments/**/*.ts", "./app/**/*.ts"],
+  "extensions": {
+    "languageService": {
+      "tadaOutputLocation": "./bigcommerce-graphql.d.ts"
+    }
+  }
+}

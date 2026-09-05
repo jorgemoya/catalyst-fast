@@ -1,0 +1,12 @@
+# pnpm 10+ blocks dependency build scripts by default, and pnpm 11 exits non-zero
+# until each is explicitly decided. Every entry below ships a native binary it has
+# to compile or download on install, so all are allowed.
+allowBuilds:
+  # File watcher used by dev tooling. Falls back to polling if not built.
+  '@parcel/watcher': true
+  # Next.js's compiler.
+  '@swc/core': true
+  # Backs tsx (scripts/build-config.ts, scripts/cache-audit.ts) and vitest.
+  esbuild: true
+  # Native resolver binding for the eslint import plugin, via eslint-config-next.
+  unrs-resolver: true
