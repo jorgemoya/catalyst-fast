@@ -17,6 +17,11 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    // Required by lib/kv and lib/cache/handlers/kv.ts, which use explicit `.ts`
+    // extensions. Next loads a cache handler outside the normal module graph, so
+    // neither the `~` path alias nor extensionless resolution applies there —
+    // without the extensions, `CACHE_HANDLER=kv` fails the build outright.
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",

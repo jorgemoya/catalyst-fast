@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
 
-import type { KvAdapter } from '../types';
+import type { KvAdapter } from '../types.ts';
 
 interface CacheEntry {
   value: unknown;

@@ -33,7 +33,6 @@ export const SORT_OPTIONS = [
 ] as const;
 
 export type SortValue = (typeof SORT_OPTIONS)[number]['value'];
-export type BcSort = (typeof SORT_OPTIONS)[number]['bc'];
 
 const SORT_VALUES = SORT_OPTIONS.map((option) => option.value);
 

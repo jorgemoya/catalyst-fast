@@ -4,7 +4,9 @@ import { getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
+import { CartBadge, CartBadgeSkeleton } from './cart-badge';
 import { CategoryNav, CategoryNavSkeleton } from './category-nav';
+import { IconLink } from './icon-link';
 import { MobileNav } from './mobile-nav';
 import { StoreLogo } from './store-logo';
 import { t } from '~/lib/i18n/messages';
@@ -13,13 +15,14 @@ import { t } from '~/lib/i18n/messages';
  * Site header.
  *
  * Every region sits behind its own `<Suspense>`, so a slow read in one never
- * blocks the rest of the header from painting. Today all of them resolve from
- * cached reads and land in the prerendered shell; the boundaries are here because
- * Phase 4 drops a genuinely dynamic cart badge into `Actions` and Phase 6 adds
- * account state, and neither should be able to hold up the logo or nav.
+ * blocks the rest of the header from painting. Logo and nav resolve from public
+ * cached reads and land in the prerendered shell.
  *
- * Cart and account are static placeholders for now — a guest sees exactly this,
- * and the count/name stream in once those phases land.
+ * The cart badge is the exception, and the reason the boundaries were there from
+ * Phase 1: it reads a cookie, so it is a `'use cache: private'` scope that is
+ * excluded from the shell by construction and streams in behind
+ * `CartBadgeSkeleton`. It cannot hold up the logo or the nav. Account state joins
+ * it in Phase 6.
  */
 export function Header() {
   return (
@@ -54,42 +57,12 @@ export function Header() {
             </svg>
           </IconLink>
 
-          {/* Phase 4 replaces this with <CartBadge/> in its own Suspense boundary. */}
-          <IconLink href="/cart" label={t('Header.cart')}>
-            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-              <path
-                d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.4a2 2 0 0 0 2-1.55L20.5 8H6"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="2"
-              />
-              <circle cx="10" cy="20" r="1.5" fill="currentColor" />
-              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
-            </svg>
-          </IconLink>
+          <Suspense fallback={<CartBadgeSkeleton />}>
+            <CartBadge />
+          </Suspense>
         </div>
       </div>
     </header>
-  );
-}
-
-function IconLink({
-  href,
-  label,
-  children,
-}: {
-  href: string;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      aria-label={label}
-      className="inline-flex size-9 items-center justify-center rounded-(--radius-control) hover:bg-accent"
-      href={href}
-    >
-      {children}
-    </Link>
   );
 }
 

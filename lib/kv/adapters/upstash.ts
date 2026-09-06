@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 
-import type { KvAdapter, SetCommandOptions } from '../types';
+import type { KvAdapter, SetCommandOptions } from '../types.ts';
 
 export class UpstashKvAdapter implements KvAdapter {
   private upstashKv = Redis.fromEnv();

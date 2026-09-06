@@ -1,4 +1,4 @@
-import type { KvAdapter, SetCommandOptions } from '../types';
+import type { KvAdapter, SetCommandOptions } from '../types.ts';
 
 /**
  * Minimal structural view of the Workers KV binding — only the two methods this
@@ -86,7 +86,13 @@ export function getRoutesKvNamespace(): RoutesKvNamespace | null {
 }
 
 export class CloudflareKvAdapter implements KvAdapter {
-  constructor(private namespace: RoutesKvNamespace) {}
+  // Explicit field, not a parameter property: this module is reachable from the
+  // cache handler, which Node loads in type-stripping mode. See lib/kv/index.ts.
+  private namespace: RoutesKvNamespace;
+
+  constructor(namespace: RoutesKvNamespace) {
+    this.namespace = namespace;
+  }
 
   async mget<Data>(...keys: string[]): Promise<Array<Data | null>> {
     // Workers KV has no multi-get, so fan out. Each get is guarded individually —

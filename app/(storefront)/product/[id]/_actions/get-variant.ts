@@ -1,19 +1,14 @@
 'use server';
 
-import {
-  toBackorderDisplay,
-  toCtaState,
-  toOutOfStockMessage,
-  toStockDisplay,
-} from '~/domain/availability';
-import type { Price } from '~/domain/price';
 import { getInventorySettings, getProductAvailability } from '~/data/inventory';
 import { getProductPrice, toOptionValueIds } from '~/data/pricing';
+import type { InventorySettings, ProductAvailability } from '~/domain/availability';
+import type { Price } from '~/domain/price';
 
 /**
  * Resolves price and stock for a variant selection.
  *
- * Called by the variant selector on change. Every read behind it is the *same*
+ * Called by the purchase form on change. Every read behind it is the *same*
  * cached function the server used to render the default variant, so a shopper
  * cycling through options warms entries that every other shopper then hits —
  * and a re-selection of something already viewed resolves from cache in
@@ -23,38 +18,33 @@ import { getProductPrice, toOptionValueIds } from '~/data/pricing';
  * `searchParams` on the server would make the entire PDP dynamic for every
  * visitor, including the overwhelming majority who never touch an option
  * (plan §4.3).
+ *
+ * **The snapshot carries raw availability rather than derived display state.**
+ * The derivations in `domain/availability.ts` are pure, and one of them —
+ * `toBackorderDisplay` — depends on the requested quantity. Returning `stock`
+ * and `backorder` already computed would mean a server round trip every time the
+ * shopper touched the quantity stepper, to recompute something that needs no
+ * data the client doesn't already hold. Handing back the inputs instead makes
+ * quantity changes instant and costs a few hundred bytes.
  */
 
 export interface VariantSnapshot {
   price: Price | undefined;
-  cta: ReturnType<typeof toCtaState> | null;
-  stock: ReturnType<typeof toStockDisplay>;
-  backorder: ReturnType<typeof toBackorderDisplay>;
-  outOfStockMessage: string | null;
+  availability: ProductAvailability | null;
+  inventory: InventorySettings;
 }
 
 export async function getVariantSnapshot(
   productId: number,
   selection: Record<string, string>,
-  quantity = 1,
 ): Promise<VariantSnapshot> {
   const optionValueIds = toOptionValueIds(selection);
 
-  const [price, availability, settings] = await Promise.all([
+  const [price, availability, inventory] = await Promise.all([
     getProductPrice(productId, optionValueIds),
     getProductAvailability(productId, optionValueIds),
     getInventorySettings(),
   ]);
 
-  if (!availability) {
-    return { price, cta: null, stock: null, backorder: null, outOfStockMessage: null };
-  }
-
-  return {
-    price,
-    cta: toCtaState(availability),
-    stock: toStockDisplay(availability, settings),
-    backorder: toBackorderDisplay(availability, settings, quantity),
-    outOfStockMessage: toOutOfStockMessage(availability, settings),
-  };
+  return { price, availability, inventory };
 }

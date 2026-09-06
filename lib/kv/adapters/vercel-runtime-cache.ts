@@ -1,6 +1,6 @@
 import { getCache } from '@vercel/functions';
 
-import type { KvAdapter, SetCommandOptions } from '../types';
+import type { KvAdapter, SetCommandOptions } from '../types.ts';
 
 const loggingEnabled = (): boolean =>
   (process.env.NODE_ENV !== 'production' && process.env.KV_LOGGER !== 'false') ||

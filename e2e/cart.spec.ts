@@ -1,0 +1,235 @@
+import { expect, test } from '@playwright/test';
+
+/** A simple product with no options — the shortest path to a populated cart. */
+const SIMPLE = '/zz-plant/';
+/** Two RectangleBoxes options (Size, Color). */
+const WITH_OPTIONS = '/the-cylinder-by-modern-botany/';
+
+/**
+ * Phase 4's acceptance bar: a guest can go home → PLP → PDP → cart → checkout
+ * without an account, and the header badge is correct at every step.
+ *
+ * Each test starts from a fresh browser context (Playwright's default), so the
+ * cart cookie never leaks between them.
+ */
+
+test.describe('add to cart', () => {
+  test('updates the header badge on the FIRST click', async ({ page }) => {
+    /*
+     * The regression test for the `updateTag` + `refresh()` contract.
+     *
+     * The badge is a `'use cache: private'` scope, which lives in the browser's
+     * memory — `updateTag` alone cannot reach it. Drop the `refresh()` from
+     * `lib/cart/revalidate.ts` and everything still appears to work: the cart
+     * page updates, and this badge eventually catches up on the next navigation.
+     * It fails here, on the first click, which is the only place the bug is
+     * visible.
+     */
+    await page.goto(SIMPLE);
+
+    await expect(page.getByTestId('cart-count')).toHaveCount(0);
+
+    await page.getByTestId('add-to-cart').click();
+
+    await expect(page.getByTestId('add-to-cart-success')).toBeVisible();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+  });
+
+  test('respects the quantity stepper', async ({ page }) => {
+    await page.goto(SIMPLE);
+
+    await page.getByRole('button', { name: 'Increase quantity' }).click();
+    await page.getByRole('button', { name: 'Increase quantity' }).click();
+    await page.getByTestId('add-to-cart').click();
+
+    await expect(page.getByTestId('cart-count')).toHaveText('3');
+  });
+
+  test('adds to an existing cart rather than starting a new one', async ({ page }) => {
+    // The `cartExists` → `addCartLineItems` branch, which the create path never
+    // exercises. Getting it wrong is invisible on the first add and loses the
+    // shopper's cart on the second.
+    await page.goto(SIMPLE);
+
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('2');
+
+    await page.goto('/cart');
+    await expect(page.getByTestId('cart-items').getByRole('listitem')).toHaveCount(1);
+    await expect(page.getByTestId('cart-item-count')).toHaveText('2 items');
+  });
+
+  test('recovers from a cookie pointing at a cart that no longer exists', async ({
+    page,
+    context,
+  }) => {
+    /*
+     * Carts expire at BigCommerce and are consumed at checkout, and the browser
+     * knows neither. Without the existence check in `addToOrCreateCart` this
+     * throws instead of quietly starting a fresh cart.
+     */
+    // Navigate first so the cookie can be scoped to the real origin, whatever
+    // port the suite is running on.
+    await page.goto(SIMPLE);
+
+    await context.addCookies([
+      { name: 'cf.cart', value: '00000000-0000-4000-8000-000000000000', url: page.url() },
+    ]);
+
+    await page.reload();
+    await page.getByTestId('add-to-cart').click();
+
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+  });
+
+  test('carries a variant selection into the cart', async ({ page }) => {
+    await page.goto(WITH_OPTIONS);
+
+    /*
+     * Every required option group has to be answered, not just the first: the CTA
+     * stays disabled with "Select Color" until each one is, which is the intended
+     * behavior and was what caught this test out. Picking the second value of
+     * each group keeps the test from encoding this store's catalog.
+     */
+    const groups = page.locator('fieldset');
+    const chosen: string[] = [];
+
+    for (let index = 0; index < (await groups.count()); index += 1) {
+      const choices = groups.nth(index).getByRole('button');
+      const choice = choices.nth(Math.min(1, (await choices.count()) - 1));
+
+      chosen.push(((await choice.textContent()) ?? '').trim());
+      await choice.click();
+      await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    }
+
+    await expect(page.getByTestId('add-to-cart')).toBeEnabled();
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    for (const value of chosen.filter(Boolean)) {
+      await expect(page.getByTestId('cart-items')).toContainText(value);
+    }
+  });
+});
+
+test.describe('cart page', () => {
+  test('shows an empty state for a guest with no cart', async ({ page }) => {
+    await page.goto('/cart');
+
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await expect(page.getByTestId('checkout')).toHaveCount(0);
+  });
+
+  test('lists what was added, with a total and a checkout link', async ({ page }) => {
+    await page.goto(SIMPLE);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    await expect(page.getByTestId('cart-item-count')).toHaveText('1 item');
+    await expect(page.getByTestId('cart-items').getByRole('listitem')).toHaveCount(1);
+    await expect(page.getByText('Order summary')).toBeVisible();
+    await expect(page.getByTestId('checkout')).toBeVisible();
+  });
+
+  test('changes quantity and removes a line', async ({ page }) => {
+    await page.goto(SIMPLE);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    await page.getByTestId('cart-items').getByRole('button', { name: 'Increase quantity' }).click();
+    await expect(page.getByTestId('cart-item-count')).toHaveText('2 items');
+    await expect(page.getByTestId('cart-count')).toHaveText('2');
+
+    await page.getByTestId('cart-items').getByRole('button', { name: /^Remove / }).click();
+
+    // Removing the last line deletes the cart at BigCommerce and clears the
+    // cookie, so this lands on the empty state rather than an orphaned cart.
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await expect(page.getByTestId('cart-count')).toHaveCount(0);
+  });
+
+  test('rejects an invalid coupon in place, without an error page', async ({ page }) => {
+    await page.goto(SIMPLE);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    await page.getByLabel('Coupon code').fill('DEFINITELY-NOT-A-REAL-CODE');
+    await page.getByRole('button', { name: 'Apply' }).click();
+
+    // Scoped by test id, not `getByRole('alert')`: Next renders a permanently
+    // present, empty route-announcer with that role, which a bare role query
+    // matches first.
+    await expect(page.getByTestId('coupon-error')).toContainText(/coupon/i);
+    // Still on the cart, still with the item — a bad code is a field error.
+    await expect(page.getByTestId('cart-items')).toBeVisible();
+  });
+});
+
+test.describe('checkout handoff', () => {
+  test('sends an empty cart back to the cart page', async ({ page }) => {
+    const response = await page.goto('/checkout/');
+
+    expect(response?.url()).toContain('/cart');
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+  });
+
+  test('redirects a populated cart to BigCommerce', async ({ page }) => {
+    await page.goto(SIMPLE);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    // Trailing slash matters here: `trailingSlash: true` means a raw `/checkout`
+    // is a 308 to `/checkout/` and never reaches the handler. Following redirects
+    // would hide that, so the request is made against the canonical path.
+    const response = await page.request.get('/checkout/', { maxRedirects: 0 });
+
+    expect(response.status()).toBe(302);
+    expect(response.headers().location).toMatch(/^https?:\/\//);
+    expect(response.headers()['cache-control']).toContain('no-store');
+  });
+});
+
+test.describe('guest journey', () => {
+  test('home → category → product → cart', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link').first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    await expect(page).toHaveURL(/\/[a-z0-9-]+\/$/);
+
+    /*
+     * `visible: true` is load-bearing, and the reason is worth recording: the
+     * listing renders its default grid inside a nested Suspense fallback (plan
+     * §4.4) so the unfiltered view lands in the static shell. Mid-stream that
+     * leaves *two* copies of the grid in the DOM, and React marks one hidden — so
+     * a plain `.first()` can latch onto a card that will never become clickable.
+     *
+     * `hasText` then picks the card's title link rather than its image link,
+     * which is an `aspect-square` block whose height derives from its width.
+     */
+    const card = page.locator('article').filter({ visible: true }).first();
+
+    await expect(card).toBeVisible();
+    await card.getByRole('link').filter({ hasText: /\S/ }).first().click();
+    await expect(page.getByTestId('add-to-cart')).toBeVisible();
+
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.getByRole('link', { name: /^Cart/ }).click();
+    await expect(page.getByTestId('cart-items')).toBeVisible();
+  });
+});

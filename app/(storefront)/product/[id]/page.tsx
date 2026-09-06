@@ -6,15 +6,9 @@ import { getInventorySettings, getProductAvailability } from '~/data/inventory';
 import { getProductPrice } from '~/data/pricing';
 import { getProduct, getProductIds } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
-import {
-  toBackorderDisplay,
-  toCtaState,
-  toOutOfStockMessage,
-  toStockDisplay,
-} from '~/domain/availability';
 import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
 import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-gallery';
-import { VariantSelector } from '~/ui/patterns/variant-selector';
+import { PurchaseForm } from '~/ui/patterns/purchase-form';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
@@ -112,7 +106,7 @@ async function ProductDetail({ params }: Props) {
             price and stock rather than a placeholder.
           */}
           <Suspense fallback={<PurchaseSkeleton />}>
-            <Purchase productId={id} options={product.options} />
+            <Purchase product={product} />
           </Suspense>
         </div>
       </div>
@@ -196,34 +190,19 @@ async function ProductRating({
  * Resolves the default variant on the server, so the shell carries real price and
  * stock. The selector then owns changes client-side.
  */
-async function Purchase({
-  productId,
-  options,
-}: {
-  productId: number;
-  options: Awaited<ReturnType<typeof getProduct>> extends infer T
-    ? T extends { options: infer O }
-      ? O
-      : never
-    : never;
-}) {
-  const [price, availability, settings] = await Promise.all([
-    getProductPrice(productId),
-    getProductAvailability(productId),
+async function Purchase({ product }: { product: NonNullable<Awaited<ReturnType<typeof getProduct>>> }) {
+  const [price, availability, inventory] = await Promise.all([
+    getProductPrice(product.id),
+    getProductAvailability(product.id),
     getInventorySettings(),
   ]);
 
   return (
-    <VariantSelector
-      fields={options}
-      initial={{
-        price,
-        cta: availability ? toCtaState(availability) : null,
-        stock: availability ? toStockDisplay(availability, settings) : null,
-        backorder: availability ? toBackorderDisplay(availability, settings, 1) : null,
-        outOfStockMessage: availability ? toOutOfStockMessage(availability, settings) : null,
-      }}
-      productId={productId}
+    <PurchaseForm
+      fields={product.options}
+      initial={{ price, availability, inventory }}
+      productId={product.id}
+      quantityLimits={{ min: product.minPurchaseQuantity, max: product.maxPurchaseQuantity }}
     />
   );
 }

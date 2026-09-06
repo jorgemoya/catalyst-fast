@@ -7,6 +7,7 @@ import { kv } from '~/lib/kv';
 import { kvKey, STORE_STATUS_KEY } from '~/lib/kv/keys';
 
 import type { ProxyFactory } from './compose';
+import { sameInternalUrl, toRouteKeyPath } from './route-key';
 
 /**
  * BigCommerce URL resolution.
@@ -225,33 +226,14 @@ const updateStatusCache = async (
   return statusCache;
 };
 
-/**
- * Normalizes a URL for loop detection. BigCommerce emits trailing slashes by
- * default; if this disagrees with `trailingSlash` in next.config.ts, a redirect
- * whose target differs from its source only by that slash will bounce forever.
- */
-function normalizeForCompare(url: URL): string {
-  if (trailingSlashDisabled && url.pathname !== '/' && url.pathname.endsWith('/')) {
-    return `${url.pathname.replace(/\/+$/, '')}${url.search}`;
-  }
-
-  if (!trailingSlashDisabled && !url.pathname.endsWith('/')) {
-    return `${url.pathname}/${url.search}`;
-  }
-
-  return `${url.pathname}${url.search}`;
-}
-
-const sameInternalUrl = (a: URL, b: URL): boolean =>
-  a.origin === b.origin && normalizeForCompare(a) === normalizeForCompare(b);
-
 const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
   const channelId = process.env.BIGCOMMERCE_CHANNEL_ID ?? '1';
 
   try {
-    // Query params are part of the key: BigCommerce 301 rules can match on them,
-    // so `/x` and `/x?a=1` are genuinely different resolutions.
-    const pathname = request.nextUrl.pathname + request.nextUrl.search;
+    // Query params stay part of the key — BigCommerce 301 rules can match on
+    // them, so `/x` and `/x?a=1` are genuinely different resolutions — but
+    // tracking noise is stripped first. See `toRouteKeyPath`.
+    const pathname = toRouteKeyPath(request.nextUrl);
 
     // One round trip for both values.
     let [routeCache, statusCache] = await kv.mget<RouteCache | StorefrontStatusCache>(
@@ -310,10 +292,27 @@ const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
  */
 const INTERNAL_ROUTE_ONLY = /^\/(?:category|brand|product)\/\d+\/?$/;
 
+/**
+ * Paths this application owns outright, which must never be resolved against
+ * BigCommerce.
+ *
+ * This is a correctness guard, not an optimization. `site.route` resolves the
+ * merchant's URL space, and nothing stops a merchant creating a web page at
+ * `/cart/`. If they have, resolution would rewrite to `/webpages/…` and our cart
+ * would become unreachable — a failure that only appears on *some* stores, which
+ * is the worst kind. Short-circuiting also saves a KV read and a negative-result
+ * lookup on two paths that get real traffic.
+ */
+const APP_OWNED_PATH = /^\/(?:cart|checkout)\/?$/;
+
 const isRscRequest = (request: NextRequest): boolean =>
   request.headers.get('RSC') === '1' || request.headers.get('Next-Router-Prefetch') === '1';
 
 export const withRoutes: ProxyFactory = () => async (request, event) => {
+  if (APP_OWNED_PATH.test(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
   if (INTERNAL_ROUTE_ONLY.test(request.nextUrl.pathname) && !isRscRequest(request)) {
     return new NextResponse(null, { status: 404 });
   }

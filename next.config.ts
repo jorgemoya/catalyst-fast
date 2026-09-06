@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import type { NextConfig } from 'next';
 
 import { cacheProfiles } from './lib/cache/profiles';
@@ -6,16 +8,25 @@ import { cspHeader } from './lib/content-security-policy';
 
 const urls = buildConfig.get('urls');
 
-// `cacheHandlers` is only wired up when self-hosting. On Vercel the platform
-// supplies both the default and remote handlers, and overriding them would be a
-// downgrade. Off-platform, `CACHE_HANDLER=kv` points `use cache: remote` at the
-// same KV infrastructure the proxy already uses for route resolution.
+/**
+ * `cacheHandlers` is only wired up when self-hosting. On Vercel the platform
+ * supplies both the default and remote handlers, and overriding them would be a
+ * downgrade. Off-platform, `CACHE_HANDLER=kv` points `use cache: remote` at the
+ * same KV infrastructure the proxy already uses for route resolution.
+ *
+ * **Absolute path, deliberately.** A project-relative `./lib/...` resolves at
+ * build but at *runtime* Next resolves it against `distDir`, looking for
+ * `.next/lib/cache/handlers/kv.ts`. That throws an `ERR_MODULE_NOT_FOUND` which
+ * Next swallows as an unhandled rejection and then silently falls back to the
+ * default in-memory handler — so the build succeeds, pages still cache, and a
+ * self-hosted deployment has no shared cache at all while looking healthy. The
+ * only symptom is one line in the server log at startup.
+ */
+const kvHandlerPath = fileURLToPath(new URL('./lib/cache/handlers/kv.ts', import.meta.url));
+
 const cacheHandlers =
   process.env.CACHE_HANDLER === 'kv'
-    ? {
-        default: './lib/cache/handlers/kv.ts',
-        remote: './lib/cache/handlers/kv.ts',
-      }
+    ? { default: kvHandlerPath, remote: kvHandlerPath }
     : undefined;
 
 const nextConfig: NextConfig = {

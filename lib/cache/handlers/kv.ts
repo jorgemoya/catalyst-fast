@@ -1,4 +1,8 @@
-import { kv } from '~/lib/kv';
+// Relative, not the `~` alias, and this is load-bearing: Next loads a cache
+// handler outside the normal module graph, so tsconfig `paths` are not applied
+// and `~/lib/kv` fails to resolve — `CACHE_HANDLER=kv` died at build with
+// "Cannot find package '~'". Keep every import in this file relative.
+import { kv } from '../../kv/index.ts';
 
 /**
  * A Next.js `CacheHandler` backed by the same KV infrastructure the proxy uses

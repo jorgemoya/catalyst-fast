@@ -55,3 +55,26 @@ export async function query<TResult, TVariables>(
 
   return data;
 }
+
+/**
+ * Writes. Mechanically identical to `query`, deliberately named apart from it.
+ *
+ * The distinction is not stylistic: `query` is safe inside a cached body and a
+ * mutation never is — running one there would re-execute a write on every cache
+ * miss and, worse, would appear to work. Sharing one name would make that
+ * mistake invisible at the call site, so `mutate` is banned in `data/` by
+ * `scripts/cache-audit.ts` the same way `customerQuery` is.
+ *
+ * Guest writes only. Once carts are customer-assigned (Phase 6) the write needs
+ * the customer's token and goes through `customerQuery` instead.
+ */
+export async function mutate<TResult, TVariables extends Record<string, unknown>>(
+  request: PublicRequest<TResult, TVariables> & { variables: TVariables },
+): Promise<TResult> {
+  const { data } = await bc.request<TResult, TVariables>({
+    ...request,
+    fetchOptions: { cache: 'no-store' },
+  });
+
+  return data;
+}

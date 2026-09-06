@@ -25,6 +25,8 @@
   "dependencies": {
     "@0no-co/graphql.web": "^1.1.2",
     "@base-ui/react": "^1.6.0",
+    "@conform-to/react": "^1.21.1",
+    "@conform-to/zod": "^1.21.1",
     "@upstash/redis": "^1.35.0",
     "@vercel/functions": "^2.2.12",
     "clsx": "^2.1.1",

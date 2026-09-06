@@ -71,7 +71,6 @@ export const cacheProfiles = {
   cart: { stale: 30, revalidate: 60, expire: 300 },
 } as const satisfies Record<string, CacheProfile>;
 
-export type CacheProfileName = keyof typeof cacheProfiles;
 
 /**
  * Guards the floors above at module load, so a bad edit fails fast in `next.config.ts`

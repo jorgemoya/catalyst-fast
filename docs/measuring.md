@@ -66,3 +66,69 @@ lookup, which is served from the in-process L1 cache.
 Note `complexity 1002` / `1011` on those two proxy queries — BigCommerce enforces
 a complexity budget, and the client logs this header on every request. Worth
 watching as queries are added.
+
+
+## Phase 4 baseline — full sweep (measured)
+
+`CLIENT_LOGGER=true next start`, production build, every route type warmed once
+then hit ten times. Phase markers interleaved into the server log so calls
+attribute to the right phase.
+
+| Warm phase (×10 requests) | BigCommerce calls |
+| --- | --- |
+| `/` | **0** |
+| `/shop-all/` | **0** |
+| `/shop-all/?sort=newest` | **0** |
+| `/zz-plant/` (PDP) | **0** |
+| `/cart/` with items | **0** |
+| `/` with a cart cookie (badge) | **0** |
+| `/zz-plant/?fbclid=…` — unique value per request | **0** |
+
+**70 warm requests, 0 origin calls.** Response times 6–13ms. The project KPI
+(plan Part 8) is origin requests per storefront pageview, target < 0.5 warm;
+measured 0. Catalyst is ~6–10 for a guest PDP and the same for a logged-in one.
+
+Cold cost per route type, from the same run:
+
+| Cold | Calls | Notes |
+| --- | --- | --- |
+| `/` | 8 | route, settings, nav ×5, featured + newest |
+| `/shop-all/` | ~10 | shared chrome + `CategoryPage` + `SearchProducts` |
+| PDP (seeded) | 7 | route + 5 product-scoped + `InventorySettings` |
+| `/cart/` with items | 2 | `CartCount` + `CartPage` |
+
+## Two caveats these numbers carry
+
+**1. `use cache: remote` is not remote in this measurement.** `cacheHandlers` is
+only wired when `CACHE_HANDLER=kv`, and on Vercel the platform supplies its own.
+Locally neither applies, so `'use cache: remote'` falls back to the same
+in-memory default handler as plain `'use cache'`. Every number above therefore
+describes **one warm worker**. It does not demonstrate that entries are shared
+across instances — that is exactly what the remote handler exists to do and it
+should be re-measured against a real deployment.
+
+**2. A route's first request after a restart is expensive, but only once.**
+
+An earlier draft of this file claimed a cold route re-fetches the shared chrome
+"and appears to do it twice", ~27 calls per request, and flagged it as an
+unexplained ongoing cost. **That was wrong, and the correction is the useful
+part.**
+
+Measured directly: on a warm seeded PDP, after 35 seconds of idle (past the
+route's 30s revalidate), the next request cost **1 call** — `ProductInventory`,
+the one scope whose own `revalidate` had elapsed. Not a route re-render. The
+immediately-following request cost 0.
+
+| Seeded PDP | Calls |
+| --- | --- |
+| Immediately after warming | 0 |
+| After 35s idle (past route revalidate) | **1** (`ProductInventory`) |
+| Immediately after that | 0 |
+
+So per-scope revalidation works exactly as designed: only the scope that expired
+refetches, not the tree above it. The 27-call observation was the **first request
+to a route after a server restart**, where the prerendered HTML exists on disk but
+the `use cache` data entries do not — the already-documented "entries do not
+survive the build" cost (`docs/scaling.md`), paid once per route per deploy, and
+the reason a post-deploy cache-warm is the mitigation. It is not an ongoing cost
+and does not scale with traffic.

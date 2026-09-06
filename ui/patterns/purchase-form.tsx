@@ -1,12 +1,19 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 
+import { addToCart } from '~/app/(storefront)/product/[id]/_actions/add-to-cart';
 import {
   getVariantSnapshot,
   type VariantSnapshot,
 } from '~/app/(storefront)/product/[id]/_actions/get-variant';
-import type { CtaState } from '~/domain/availability';
+import {
+  type CtaState,
+  toBackorderDisplay,
+  toCtaState,
+  toOutOfStockMessage,
+  toStockDisplay,
+} from '~/domain/availability';
 import {
   defaultSelection,
   type OptionSelection,
@@ -15,11 +22,15 @@ import {
 } from '~/domain/product-options';
 import { cn } from '~/lib/cn';
 import { formatCurrency, t } from '~/lib/i18n/messages';
-import { Image } from '~/ui/primitives/image';
+import { Link } from '~/ui/primitives/link';
+
+import { OptionField } from './option-fields';
+import { QuantityStepper } from './quantity-stepper';
 
 /**
- * Variant selection as **client-owned interaction state**, not navigation state.
+ * The PDP's purchase region: options, price, stock, quantity, and add to cart.
  *
+ * **Variant selection is client-owned interaction state, not navigation state.**
  * This is the decision the PDP's caching rests on (plan §4.3). Reading
  * `searchParams` on the server would make the whole page dynamic for every
  * visitor — including the ~95% who never touch an option — so the server always
@@ -32,22 +43,38 @@ import { Image } from '~/ui/primitives/image';
  * The trade-off: a deep-linked variant paints the default first and swaps during
  * hydration. BigCommerce canonicalizes variant URLs to the base product anyway,
  * so nothing is lost for SEO.
+ *
+ * Stock and backorder state are *derived here* from the snapshot's raw
+ * availability rather than fetched. They depend on quantity, and the derivations
+ * are pure — computing them on the client makes the stepper instant instead of
+ * costing a round trip per click.
  */
 
 interface Props {
   productId: number;
   fields: ProductOptionField[];
+  quantityLimits: { min: number; max: number | null };
   /** Server-rendered default variant state, shown until the shopper changes something. */
   initial: VariantSnapshot;
 }
 
 type Selection = OptionSelection;
 
-export function VariantSelector({ productId, fields, initial }: Props) {
+export function PurchaseForm({ productId, fields, quantityLimits, initial }: Props) {
   const variantFields = useMemo(() => fields.filter((field) => field.variantDefining), [fields]);
   const [selection, setSelection] = useState<Selection>(() => defaultSelection(fields));
   const [snapshot, setSnapshot] = useState(initial);
-  const [isPending, startTransition] = useTransition();
+  const [quantity, setQuantity] = useState(quantityLimits.min);
+  const [isResolving, startTransition] = useTransition();
+
+  const [result, formAction, isSubmitting] = useActionState(
+    addToCart.bind(null, productId),
+    null,
+  );
+
+  const errors = result?.error ?? {};
+  const formErrors = errors[''] ?? [];
+  const wasAdded = result?.status === 'success';
 
   /*
    * Deep links are read on the *client*. Reading them on the server is what would
@@ -102,12 +129,25 @@ export function VariantSelector({ productId, fields, initial }: Props) {
    * either fail at the API or silently add the wrong thing.
    *
    * Only variant-defining options gate the CTA. A required *text* field is
-   * validated on submit (Phase 4), because unlike a variant it doesn't change
-   * what is being bought.
+   * validated on submit, because unlike a variant it doesn't change what is being
+   * bought.
    */
-  const missingRequired = variantFields.filter(
-    (field) => field.required && !selection[field.id],
-  );
+  const missingRequired = variantFields.filter((field) => field.required && !selection[field.id]);
+
+  const derived = useMemo(() => {
+    const { availability, inventory } = snapshot;
+
+    if (!availability) {
+      return { cta: null, stock: null, backorder: null, outOfStockMessage: null };
+    }
+
+    return {
+      cta: toCtaState(availability),
+      stock: toStockDisplay(availability, inventory),
+      backorder: toBackorderDisplay(availability, inventory, quantity),
+      outOfStockMessage: toOutOfStockMessage(availability, inventory),
+    };
+  }, [snapshot, quantity]);
 
   const select = (fieldId: string, value: string) => {
     const next = { ...selection, [fieldId]: value };
@@ -136,36 +176,68 @@ export function VariantSelector({ productId, fields, initial }: Props) {
     });
   };
 
+  const blocked =
+    (derived.cta?.disabled ?? false) ||
+    missingRequired.length > 0 ||
+    (derived.backorder?.exceedsAvailable ?? false);
+
   return (
-    <div className="flex flex-col gap-6">
-      <VariantPrice snapshot={snapshot} stale={isPending} />
+    <form action={formAction} className="flex flex-col gap-6">
+      <VariantPrice price={snapshot.price} stale={isResolving} />
 
       {fields.map((field) => (
         <OptionField
+          errors={errors[`option.${field.id}`] ?? undefined}
           field={field}
           key={field.id}
+          name={`option.${field.id}`}
           onSelect={(value) => select(field.id, value)}
-          value={selection[field.id]}
+          value={field.variantDefining ? (selection[field.id] ?? '') : undefined}
         />
       ))}
 
-      <VariantAvailability snapshot={snapshot} stale={isPending} />
+      <VariantAvailability derived={derived} stale={isResolving} />
+
+      <QuantityStepper
+        decrementLabel={t('Product.decreaseQuantity')}
+        disabled={isSubmitting}
+        incrementLabel={t('Product.increaseQuantity')}
+        label={t('Product.quantity')}
+        max={quantityLimits.max}
+        min={quantityLimits.min}
+        name="quantity"
+        onChange={setQuantity}
+        value={quantity}
+      />
 
       <button
         className="h-12 rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="add-to-cart"
-        // Phase 4 wires this to the cart. Rendered now because the CTA and its
-        // enabled/disabled state are part of the shell the PDP must prove.
-        disabled={(snapshot.cta?.disabled ?? false) || missingRequired.length > 0}
-        type="button"
+        disabled={blocked || isSubmitting}
+        type="submit"
       >
         {missingRequired.length > 0
           ? t('Product.selectOptions', {
               options: missingRequired.map((field) => field.label).join(' and '),
             })
-          : ctaLabel(snapshot.cta?.kind)}
+          : ctaLabel(derived.cta?.kind, isSubmitting)}
       </button>
-    </div>
+
+      {formErrors.length > 0 && (
+        <p className="text-sm text-error" role="alert">
+          {formErrors.join(' ')}
+        </p>
+      )}
+
+      {wasAdded && (
+        <p className="flex items-center gap-3 text-sm" data-testid="add-to-cart-success" role="status">
+          <span className="text-in-stock">{t('Product.addedToCart')}</span>
+          <Link className="text-primary underline underline-offset-4" href="/cart">
+            {t('Product.viewCart')}
+          </Link>
+        </p>
+      )}
+    </form>
   );
 }
 
@@ -174,7 +246,11 @@ export function VariantSelector({ productId, fields, initial }: Props) {
  * semantics rather than a label, so this mapping — and its translations — live
  * in the UI where they belong.
  */
-function ctaLabel(kind: CtaState['kind'] | undefined): string {
+function ctaLabel(kind: CtaState['kind'] | undefined, isSubmitting: boolean): string {
+  if (isSubmitting) {
+    return t('Product.addingToCart');
+  }
+
   switch (kind) {
     case 'preorder':
       return t('Product.preorder');
@@ -202,9 +278,7 @@ function ctaLabel(kind: CtaState['kind'] | undefined): string {
 const stalenessClasses = (stale: boolean) =>
   cn('transition-opacity duration-150', stale ? 'opacity-60 delay-200' : 'opacity-100 delay-0');
 
-function VariantPrice({ snapshot, stale }: { snapshot: VariantSnapshot; stale: boolean }) {
-  const { price } = snapshot;
-
+function VariantPrice({ price, stale }: { price: VariantSnapshot['price']; stale: boolean }) {
   if (!price) {
     return null;
   }
@@ -213,10 +287,7 @@ function VariantPrice({ snapshot, stale }: { snapshot: VariantSnapshot; stale: b
     formatCurrency(price.mode === 'INC' ? value.inc : value.ex, value.currencyCode);
 
   return (
-    <p
-      className={cn('text-2xl font-semibold', stalenessClasses(stale))}
-      data-testid="product-price"
-    >
+    <p className={cn('text-2xl font-semibold', stalenessClasses(stale))} data-testid="product-price">
       {price.type === 'range' && `${money(price.min)} – ${money(price.max)}`}
       {price.type === 'sale' && (
         <>
@@ -229,14 +300,15 @@ function VariantPrice({ snapshot, stale }: { snapshot: VariantSnapshot; stale: b
   );
 }
 
-function VariantAvailability({
-  snapshot,
-  stale,
-}: {
-  snapshot: VariantSnapshot;
-  stale: boolean;
-}) {
-  const { stock, backorder, outOfStockMessage } = snapshot;
+interface Derived {
+  cta: CtaState | null;
+  stock: ReturnType<typeof toStockDisplay>;
+  backorder: ReturnType<typeof toBackorderDisplay>;
+  outOfStockMessage: string | null;
+}
+
+function VariantAvailability({ derived, stale }: { derived: Derived; stale: boolean }) {
+  const { stock, backorder, outOfStockMessage } = derived;
 
   return (
     <div
@@ -261,178 +333,4 @@ function VariantAvailability({
       {backorder?.exceedsAvailable && <p className="text-error">{t('Product.exceedsStock')}</p>}
     </div>
   );
-}
-
- 
-function OptionField({
-  field,
-  value,
-  onSelect,
-}: {
-  field: ProductOptionField;
-  value?: string;
-  onSelect: (value: string) => void;
-}) {
-  const label = (
-    <span className="mb-2 block text-sm font-medium">
-      {field.label}
-      {field.required && <span className="text-error"> *</span>}
-    </span>
-  );
-
-  switch (field.type) {
-    case 'swatch':
-      return (
-        <fieldset>
-          <legend className="sr-only">{field.label}</legend>
-          {label}
-          <div className="flex flex-wrap gap-2">
-            {field.values.map((option) => (
-              <button
-                aria-label={option.label}
-                aria-pressed={value === option.value}
-                className={cn(
-                  'size-9 overflow-hidden rounded-full border-2',
-                  value === option.value ? 'border-primary' : 'border-border',
-                )}
-                key={option.value}
-                onClick={() => onSelect(option.value)}
-                style={option.color ? { backgroundColor: option.color } : undefined}
-                title={option.label}
-                type="button"
-              >
-                {option.image && (
-                  <Image alt={option.label} height={36} src={option.image.src} width={36} />
-                )}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      );
-
-    case 'buttons':
-    case 'radio':
-    case 'cards':
-      return (
-        <fieldset>
-          <legend className="sr-only">{field.label}</legend>
-          {label}
-          <div className="flex flex-wrap gap-2">
-            {field.values.map((option) => (
-              <button
-                aria-pressed={value === option.value}
-                className={cn(
-                  'rounded-(--radius-control) border px-3 py-2 text-sm',
-                  value === option.value
-                    ? 'border-primary bg-accent font-medium'
-                    : 'border-border hover:border-border-strong',
-                )}
-                key={option.value}
-                onClick={() => onSelect(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </fieldset>
-      );
-
-    case 'select':
-      return (
-        <label>
-          {label}
-          <select
-            className="h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
-            onChange={(event) => onSelect(event.target.value)}
-            value={value ?? ''}
-          >
-            <option value="">{t('Product.chooseOption')}</option>
-            {field.values.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      );
-
-    case 'checkbox':
-      return (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={value === field.checkedValue}
-            className="size-4"
-            onChange={(event) =>
-              onSelect(event.target.checked ? field.checkedValue : field.uncheckedValue)
-            }
-            type="checkbox"
-          />
-          {field.label}
-        </label>
-      );
-
-    // The personalization inputs below never change price or stock
-    // (`variantDefining: false`), so they don't trigger a snapshot fetch. Phase 4
-    // collects their values for the cart line.
-    case 'number':
-      return (
-        <label>
-          {label}
-          <input
-            className="h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
-            defaultValue={field.defaultValue}
-            max={field.max}
-            min={field.min}
-            step={field.integerOnly ? 1 : 'any'}
-            type="number"
-          />
-        </label>
-      );
-
-    case 'text':
-      return (
-        <label>
-          {label}
-          <input
-            className="h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
-            defaultValue={field.defaultValue}
-            maxLength={field.maxLength}
-            minLength={field.minLength}
-            type="text"
-          />
-        </label>
-      );
-
-    case 'textarea':
-      return (
-        <label>
-          {label}
-          <textarea
-            className="w-full rounded-(--radius-control) border border-border bg-background px-2 py-1.5 text-sm"
-            defaultValue={field.defaultValue}
-            maxLength={field.maxLength}
-            minLength={field.minLength}
-            rows={field.maxLines ?? 3}
-          />
-        </label>
-      );
-
-    case 'date':
-      return (
-        <label>
-          {label}
-          <input
-            className="h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm"
-            defaultValue={field.defaultValue}
-            max={field.latest}
-            min={field.earliest}
-            type="date"
-          />
-        </label>
-      );
-
-    default:
-      return null;
-  }
 }

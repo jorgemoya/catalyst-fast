@@ -10,12 +10,19 @@
 | Also rendered | reviews, related products, Product JSON-LD |
 | Warm request | **0 BigCommerce calls** |
 | Cold request | 5 product-scoped queries |
-| Seeded products in build output | `○ (Static)` — fully prerendered, 30s revalidate |
+| Seeded products in build output | `◐ (Partial Prerender)`, 30s revalidate |
 
-Seeded products come out **fully static**, not partial-prerender: nothing on the
-page reads request state, so price and stock are prerendered too. The 30s
-revalidate is the `inventory` profile — the shortest read on the page — which is
-what keeps prerendered stock honest.
+Everything in the page *body* is prerendered — nothing there reads request state,
+so price and stock are prerendered too. The 30s revalidate is the `inventory`
+profile, the shortest read on the page, which is what keeps prerendered stock
+honest.
+
+> **Amended in Phase 4.** This route reported `○ (Static)` when the phase closed.
+> It is now `◐` because the shared header gained a cart badge, which is a
+> `'use cache: private'` scope and therefore excluded from shell generation by
+> construction. The PDP's own content did not move out of the shell — the change
+> is one streamed hole in the chrome, on every route at once. See
+> `docs/phase-4-cart.md`.
 
 > **Correction to the plan.** §4.2 projected "4 product-scoped queries vs
 > Catalyst's 7". The real number is **5** (`ProductPage`, `ProductPrices`,
@@ -105,12 +112,13 @@ the predicate); the third was deleted.
 
 ## Deferred
 
-- **Add to cart** (Phase 4). The CTA renders with correct enabled/disabled state
-  from `toCtaState` but is not wired.
+- ~~**Add to cart**~~ — landed in Phase 4.
 - **Wishlist**, **review submission** — both write paths needing auth or reCAPTCHA.
 - **Personalized price** (Phase 6) — the overlay described in plan §3.2.
-- **Quantity stepper.** `toBackorderDisplay` already recomputes the ship-now vs
-  backordered split per quantity; nothing drives it yet.
+- ~~**Quantity stepper.**~~ Landed in Phase 4, and it now drives
+  `toBackorderDisplay` **client-side**: the snapshot carries raw availability
+  rather than derived display state, so changing quantity recomputes the
+  ship-now/backordered split with no server round trip.
 - **Product analytics** (`navigation.productViewed`) — Phase 7.
 
 ## Second audit (after user-reported UI bugs)
@@ -152,7 +160,8 @@ covered by unit tests; neither has run against real data.
 
 ## Known suppression
 
-`ui/patterns/variant-selector.tsx` disables `react-hooks/set-state-in-effect` for
+`ui/patterns/purchase-form.tsx` (named `variant-selector.tsx` until Phase 4 gave
+it the add-to-cart form) disables `react-hooks/set-state-in-effect` for
 one effect, with the reasoning inline. The rule catches derived state; this is
 fetching external data in response to mount-time browser state, which it cannot
 distinguish. Both alternatives are worse — deriving from `useSearchParams` during

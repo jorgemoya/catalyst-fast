@@ -31,6 +31,13 @@ const BANNED_IN_PUBLIC = [
   { pattern: /from ['"]next\/headers['"]/, reason: 'request APIs are illegal in a public cache scope' },
   { pattern: /from ['"]next-intl\/server['"]/, reason: 'request-scoped translators throw inside use cache' },
   { pattern: /customerQuery/, reason: 'customerQuery is dynamic; use query() in data/' },
+  // Matches a call or an import, not the bare word: `data/cart.ts` legitimately
+  // says "read and mutate that cart" in a comment, and an audit that fires on
+  // prose gets silenced rather than fixed.
+  {
+    pattern: /(?:^|[^.\w])mutate\s*\(|import\s*\{[^}]*\bmutate\b[^}]*\}/,
+    reason: 'writes must never sit in a cached body — they would re-run on every miss',
+  },
 ];
 
 interface Finding {

@@ -14,6 +14,12 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.7.0(@types/react@19.2.18)(react-dom@19.1.7(react@19.1.7))(react@19.1.7)
+      '@conform-to/react':
+        specifier: ^1.21.1
+        version: 1.21.1(react-dom@19.1.7(react@19.1.7))(react@19.1.7)
+      '@conform-to/zod':
+        specifier: ^1.21.1
+        version: 1.21.1(zod@3.25.76)
       '@upstash/redis':
         specifier: ^1.35.0
         version: 1.38.3
@@ -238,6 +244,20 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  '@conform-to/dom@1.21.1':
+    resolution: {integrity: sha512-pYnhrJoM1xDbAx36rVxxm4643TFWwquTDoI8abtgnC40XIHDZDUhy3pIrZrv+QjwtLEgSWGP5GX/LqJ+IDfe/Q==}
+
+  '@conform-to/react@1.21.1':
+    resolution: {integrity: sha512-q0kzC5dEHL4okfmdbih95OfuelXw6xlLeN9WvtxQ7CP047D6A5lRK+0DykZZHCFP4idsQzC8NUBQd/tkKXPukg==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  '@conform-to/zod@1.21.1':
+    resolution: {integrity: sha512-VqMuYoUVtZJ57P1EYD4tDuOyOaN5jiep1Ui6BRl7aP1m6tA8Do+mKioR7WXkGKULiNsjgPR7/FyWLtMUmtJNHg==}
+    peerDependencies:
+      zod: ^3.21.0 || ^4.0.0
 
   '@eloqnt/config@0.1.0':
     resolution: {integrity: sha512-SLR6ZSHxu6XdZtmOz3xRmC3gsY/sCzqtLMD1gxbW2I3XXPBbupwL5RZbkLU/NcZm74AKZrIUPfz3CtEJfxUKqQ==}
@@ -3219,6 +3239,19 @@ snapshots:
       use-sync-external-store: 1.6.0(react@19.1.7)
     optionalDependencies:
       '@types/react': 19.2.18
+
+  '@conform-to/dom@1.21.1': {}
+
+  '@conform-to/react@1.21.1(react-dom@19.1.7(react@19.1.7))(react@19.1.7)':
+    dependencies:
+      '@conform-to/dom': 1.21.1
+      react: 19.1.7
+      react-dom: 19.1.7(react@19.1.7)
+
+  '@conform-to/zod@1.21.1(zod@3.25.76)':
+    dependencies:
+      '@conform-to/dom': 1.21.1
+      zod: 3.25.76
 
   '@eloqnt/config@0.1.0': {}
 

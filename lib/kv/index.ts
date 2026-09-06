@@ -1,5 +1,5 @@
-import { MemoryKvAdapter, SHARED_STORE_RECHECK_MS } from './adapters/memory';
-import type { KvAdapter, SetCommandOptions } from './types';
+import { MemoryKvAdapter, SHARED_STORE_RECHECK_MS } from './adapters/memory.ts';
+import type { KvAdapter, SetCommandOptions } from './types.ts';
 
 interface Config {
   logger?: boolean;
@@ -12,14 +12,26 @@ interface Config {
  */
 const memoryKv = new MemoryKvAdapter({ ttlMs: SHARED_STORE_RECHECK_MS });
 
+/**
+ * Note the explicit field declarations and assignments below, rather than
+ * TypeScript parameter properties.
+ *
+ * This module is reachable from `lib/cache/handlers/kv.ts`, and Next loads a
+ * cache handler through Node's **type-stripping** loader — which only accepts
+ * erasable TypeScript. A parameter property has runtime meaning, so it fails
+ * with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` and takes the whole build with it.
+ * Same reason every import in this subtree carries an explicit `.ts` extension.
+ */
 class KV<Adapter extends KvAdapter> implements KvAdapter {
   private kv?: Adapter;
   private memoryKv = memoryKv;
+  private createAdapter: () => Promise<Adapter>;
+  private config: Config;
 
-  constructor(
-    private createAdapter: () => Promise<Adapter>,
-    private config: Config = {},
-  ) {}
+  constructor(createAdapter: () => Promise<Adapter>, config: Config = {}) {
+    this.createAdapter = createAdapter;
+    this.config = config;
+  }
 
   async get<Data>(key: string): Promise<Data | null> {
     const [value] = await this.mget<Data>(key);
@@ -88,7 +100,7 @@ class KV<Adapter extends KvAdapter> implements KvAdapter {
 export async function createKVAdapter(): Promise<KvAdapter> {
   // Regionally colocated with the function on Vercel, so cheapest by far.
   if (process.env.VERCEL === '1') {
-    const { RuntimeCacheAdapter } = await import('./adapters/vercel-runtime-cache');
+    const { RuntimeCacheAdapter } = await import('./adapters/vercel-runtime-cache.ts');
 
     return new RuntimeCacheAdapter();
   }
@@ -96,7 +108,7 @@ export async function createKVAdapter(): Promise<KvAdapter> {
   // On Cloudflare Workers each project gets its own KV namespace bound as
   // CATALYST_ROUTES_KV. `getRoutesKvNamespace` returns null on every other
   // runtime, so this is a no-op off Cloudflare.
-  const { CloudflareKvAdapter, getRoutesKvNamespace } = await import('./adapters/cloudflare-kv');
+  const { CloudflareKvAdapter, getRoutesKvNamespace } = await import('./adapters/cloudflare-kv.ts');
   const routesKvNamespace = getRoutesKvNamespace();
 
   if (routesKvNamespace) {
@@ -104,7 +116,7 @@ export async function createKVAdapter(): Promise<KvAdapter> {
   }
 
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    const { UpstashKvAdapter } = await import('./adapters/upstash');
+    const { UpstashKvAdapter } = await import('./adapters/upstash.ts');
 
     return new UpstashKvAdapter();
   }
