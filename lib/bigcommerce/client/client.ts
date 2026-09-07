@@ -1,5 +1,6 @@
 import {
   InFlightCoalescer,
+  isRetryableNetworkError,
   isRetryableStatus,
   retryDelayMs,
   Semaphore,
@@ -158,12 +159,26 @@ export class BigCommerceClient {
     try {
       for (let attempt = 0; ; attempt += 1) {
         const startedAt = performance.now();
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: this.buildHeaders(options),
-          body,
-          ...options.fetchOptions,
-        });
+        let response: Response;
+
+        try {
+          response = await fetch(url, {
+            method: 'POST',
+            headers: this.buildHeaders(options),
+            body,
+            ...options.fetchOptions,
+          });
+        } catch (error) {
+          // A transport failure never becomes a response, so the status checks
+          // below can't see it. Without this, one connect timeout during
+          // prerendering fails an entire `next build`.
+          if (isRetryableNetworkError(error) && attempt < MAX_ATTEMPTS - 1) {
+            await sleep(retryDelayMs(attempt, null));
+            continue;
+          }
+
+          throw error;
+        }
 
         if (response.ok) {
           this.log(url, response, startedAt);

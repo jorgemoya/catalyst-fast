@@ -14,6 +14,7 @@ import {
 import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
 import { Facets, FacetsSkeleton } from '~/ui/patterns/facets';
 import { Pagination } from '~/ui/patterns/pagination';
+import { Prose } from '~/ui/patterns/prose';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
 import { SortSelect } from '~/ui/patterns/sort-select';
 import { Skeleton } from '~/ui/primitives/skeleton';
@@ -68,13 +69,8 @@ function Header({
       {breadcrumbs && breadcrumbs.length > 0 && <Breadcrumbs items={breadcrumbs} />}
       <header className="mt-4 mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        {description && (
-          <div
-            className="mt-3 max-w-prose text-sm text-muted [&_a]:underline"
-            // Category descriptions are merchant-authored WYSIWYG HTML.
-            dangerouslySetInnerHTML={{ __html: description }}
-          />
-        )}
+        {/* Sanitized in `data/catalog.ts`; see the contract on `Prose`. */}
+        {description && <Prose className="mt-3 text-muted" html={description} />}
       </header>
     </>
   );
@@ -126,16 +122,38 @@ interface RegionProps {
   options: CanonicalizeOptions;
   pathname: string;
   searchParams: Promise<RawSearchParams>;
+  /**
+   * Whether the Suspense fallback renders the cached *unfiltered* listing.
+   *
+   * True for category and brand, where "unfiltered" is a real, useful view that
+   * most traffic lands on — so prerendering it puts real products in the shell.
+   *
+   * **False for search**, where it would be actively wrong: a search key with no
+   * term is the entire catalog, so the fallback would flash the whole store
+   * before the actual results replaced it, and would spend a full
+   * `SearchProducts` query to do it. A search page has no static shell to fill
+   * anyway — it cannot render at all without reading `term`.
+   */
+  prerenderDefault?: boolean;
 }
 
 /** Facet panel: refined when filters are present, cached-default otherwise. */
-export function FacetRegion({ options, pathname, searchParams }: RegionProps) {
+export function FacetRegion({
+  options,
+  pathname,
+  searchParams,
+  prerenderDefault = true,
+}: RegionProps) {
   return (
     <Suspense
       fallback={
-        <Suspense fallback={<FacetsSkeleton />}>
-          <DefaultFacets options={options} pathname={pathname} />
-        </Suspense>
+        prerenderDefault ? (
+          <Suspense fallback={<FacetsSkeleton />}>
+            <DefaultFacets options={options} pathname={pathname} />
+          </Suspense>
+        ) : (
+          <FacetsSkeleton />
+        )
       }
     >
       <RefinedFacets options={options} pathname={pathname} searchParams={searchParams} />
@@ -146,17 +164,23 @@ export function FacetRegion({ options, pathname, searchParams }: RegionProps) {
 export function ToolbarRegion({
   options,
   searchParams,
+  prerenderDefault = true,
 }: {
   options: CanonicalizeOptions;
   searchParams: Promise<RawSearchParams>;
+  prerenderDefault?: boolean;
 }) {
   return (
     <div className="mb-6 flex items-center justify-between gap-4">
       <Suspense
         fallback={
-          <Suspense fallback={<Skeleton className="h-5 w-24" />}>
-            <DefaultResultCount options={options} />
-          </Suspense>
+          prerenderDefault ? (
+            <Suspense fallback={<Skeleton className="h-5 w-24" />}>
+              <DefaultResultCount options={options} />
+            </Suspense>
+          ) : (
+            <Skeleton className="h-5 w-24" />
+          )
         }
       >
         <RefinedResultCount options={options} searchParams={searchParams} />
@@ -172,13 +196,18 @@ export function GridRegion({
   pathname,
   searchParams,
   emptyState,
+  prerenderDefault = true,
 }: RegionProps & { emptyState: ReactNode }) {
   return (
     <Suspense
       fallback={
-        <Suspense fallback={<ProductGridSkeleton count={8} />}>
-          <DefaultGrid emptyState={emptyState} options={options} />
-        </Suspense>
+        prerenderDefault ? (
+          <Suspense fallback={<ProductGridSkeleton count={8} />}>
+            <DefaultGrid emptyState={emptyState} options={options} />
+          </Suspense>
+        ) : (
+          <ProductGridSkeleton count={8} />
+        )
       }
     >
       <RefinedGrid

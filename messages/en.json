@@ -16,7 +16,8 @@
     "closeMenu": "Close menu",
     "menu": "Menu",
     "shopAllCategory": "Shop all {category}",
-    "cartWithCount": "{count, plural, one {Cart, # item} other {Cart, # items}}"
+    "cartWithCount": "{count, plural, one {Cart, # item} other {Cart, # items}}",
+    "closeSearch": "Close search"
   },
   "Footer": {
     "shop": "Shop",
@@ -146,5 +147,41 @@
   "Maintenance": {
     "title": "We'll be right back",
     "subtitle": "The store is temporarily unavailable while we make some changes."
+  },
+  "Search": {
+    "title": "Search",
+    "label": "Search products",
+    "placeholder": "Search for products…",
+    "submit": "Search",
+    "promptTitle": "What are you looking for?",
+    "promptSubtitle": "Enter a search term to see matching products.",
+    "emptyTitle": "No results",
+    "emptySubtitle": "Nothing matched “{term}”. Try a different spelling or a broader term.",
+    "viewAll": "See all results for “{term}”",
+    "titleWithTerm": "Search results for “{term}”"
+  },
+  "Blog": {
+    "title": "Blog",
+    "tags": "Tags",
+    "emptyTitle": "No posts yet",
+    "emptySubtitle": "Check back soon."
+  },
+  "Contact": {
+    "submit": "Send message",
+    "sending": "Sending…",
+    "success": "Thanks — your message has been sent.",
+    "failed": "We couldn't send your message. Please try again.",
+    "required": "This field is required.",
+    "invalidEmail": "Enter a valid email address.",
+    "tooLong": "Must be {max} characters or fewer.",
+    "fields": {
+      "fullname": "Full name",
+      "companyname": "Company",
+      "phone": "Phone number",
+      "orderno": "Order number",
+      "rma": "RMA number",
+      "email": "Email",
+      "comments": "Message"
+    }
   }
 }

@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-const CATEGORY = '/plants/';
+import { CATEGORY } from './fixtures';
+
+
 
 test.describe('listing page shell', () => {
   test('prerenders real content, not skeletons', async ({ page }) => {
@@ -47,8 +49,17 @@ test.describe('refinement', () => {
 
     const before = await page.getByTestId('result-count').last().innerText();
 
-    // First non-disabled facet option.
-    await page.locator('details a[aria-pressed="false"]').first().click();
+    /*
+     * Facet groups render as `<details>`, and a collapsed one hides its links —
+     * which group is open depends on the merchant's `isCollapsedByDefault`, so a
+     * bare `.first()` can latch onto an option that never becomes clickable.
+     * Open every group first, then take the first visible unselected option.
+     */
+    for (const group of await page.locator('details').all()) {
+      await group.evaluate((element) => (element as HTMLDetailsElement).open = true);
+    }
+
+    await page.locator('details a[aria-pressed="false"]').filter({ visible: true }).first().click();
     await page.waitForURL(/\?/);
 
     await expect(page.getByTestId('result-count').last()).not.toHaveText(before);

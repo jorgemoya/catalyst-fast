@@ -245,6 +245,27 @@ Full table in `docs/measuring.md`. The remaining caveat is that even with the KV
 handler, a local run uses `MemoryKvAdapter` — so cross-*instance* sharing still
 needs a deployment with Upstash or Cloudflare KV configured to demonstrate.
 
+## Date options rendered a day early
+
+Found by exercising a product with all ten option types against a real store.
+
+A picked calendar date is anchored at **UTC midnight** on submission — deliberate,
+so the day the shopper chose can't drift. The cart then formatted it with
+`formatDate`, which renders in the **viewer's** timezone. Anchoring and reading
+disagreed, so every viewer west of UTC saw the previous day: `2026-12-24` was
+submitted, stored correctly, and displayed as **"Dec 23, 2026"** in
+`America/Chicago`.
+
+Storage was never wrong — only the display, which is what made it survive. There
+is now `formatDateOnly` (UTC) alongside `formatDate` (local), because an *instant*
+and a *calendar date* are both ISO strings and must be formatted differently: a
+blog post's publish time belongs in the reader's timezone, a chosen delivery date
+does not.
+
+`e2e/product-options.spec.ts` covers the full matrix — ten option types, native
+constraints derived from the catalog, the CTA gate, server-side validation with
+native checks bypassed, and every option round-tripping to the cart line.
+
 ## Found, not fixed — outside this phase
 
 **The unfiltered listing page serializes its grid twice.** `/shop-all/` returns 24

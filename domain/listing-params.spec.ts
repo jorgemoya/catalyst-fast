@@ -5,6 +5,7 @@ import {
   canonicalizeListingParams,
   DEFAULT_LIMIT,
   defaultKey,
+  fromBcSort,
   isFiltered,
   shouldBypassCache,
 } from './listing-params';
@@ -191,5 +192,52 @@ describe('shouldBypassCache', () => {
 
     expect(activeFacetCount(key)).toBeGreaterThan(4);
     expect(shouldBypassCache(key)).toBe(true);
+  });
+});
+
+describe('fromBcSort', () => {
+  /*
+   * Guards a bug that shipped in Phase 2 and survived until Phase 5: a local map
+   * in `data/catalog.ts` used `ALPHABETICAL_ASC`/`ALPHABETICAL_DESC`, which are
+   * not members of `CategoryProductSort`. The real values, `A_TO_Z`/`Z_TO_A`,
+   * fell through to `undefined` — so an alphabetically-sorted category never
+   * recognized its own default, and `?sort=a-to-z` created a second cache entry
+   * identical to the unfiltered one instead of collapsing onto it.
+   */
+  it('maps every value both BigCommerce sort enums share', () => {
+    expect(fromBcSort('A_TO_Z')).toBe('a-to-z');
+    expect(fromBcSort('Z_TO_A')).toBe('z-to-a');
+    expect(fromBcSort('LOWEST_PRICE')).toBe('price-asc');
+    expect(fromBcSort('HIGHEST_PRICE')).toBe('price-desc');
+    expect(fromBcSort('BEST_SELLING')).toBe('best-selling');
+    expect(fromBcSort('BEST_REVIEWED')).toBe('best-reviewed');
+    expect(fromBcSort('NEWEST')).toBe('newest');
+    expect(fromBcSort('FEATURED')).toBe('featured');
+  });
+
+  it('maps RELEVANCE, which only the search enum has', () => {
+    expect(fromBcSort('RELEVANCE')).toBe('relevance');
+  });
+
+  it('returns undefined for CategoryProductSort.DEFAULT', () => {
+    // "DEFAULT" means the merchant chose nothing, which is exactly "no configured
+    // default" — not a sort value.
+    expect(fromBcSort('DEFAULT')).toBeUndefined();
+  });
+
+  it('returns undefined for names that are not in either enum', () => {
+    // The precise shape of the old bug.
+    expect(fromBcSort('ALPHABETICAL_ASC')).toBeUndefined();
+    expect(fromBcSort('ALPHABETICAL_DESC')).toBeUndefined();
+    expect(fromBcSort(null)).toBeUndefined();
+    expect(fromBcSort(undefined)).toBeUndefined();
+  });
+
+  it('drops a configured default out of the cache key', () => {
+    // The reason this matters at all: the sort that equals the default must
+    // canonicalize to absent, so it shares the unfiltered entry.
+    const key = canonicalizeListingParams({ sort: 'a-to-z' }, { defaultSort: fromBcSort('A_TO_Z') });
+
+    expect(key.sort).toBeUndefined();
   });
 });

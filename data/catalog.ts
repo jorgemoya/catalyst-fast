@@ -3,7 +3,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 
 import type { Breadcrumb } from '~/domain/breadcrumbs';
 import { toSafeHtml } from '~/domain/html';
-import type { SortValue } from '~/domain/listing-params';
+import { fromBcSort, type SortValue } from '~/domain/listing-params';
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
@@ -124,24 +124,6 @@ const BrandQuery = graphql(`
   }
 `);
 
-/**
- * BigCommerce's `defaultProductSort` enum uses different spellings from the
- * public URL values, so it is mapped rather than passed through — and it feeds
- * canonicalization, so a category whose default is "newest" collapses
- * `?sort=newest` to the shared unfiltered key.
- */
-const DEFAULT_SORT_MAP: Record<string, SortValue> = {
-  FEATURED: 'featured',
-  NEWEST: 'newest',
-  BEST_SELLING: 'best-selling',
-  ALPHABETICAL_ASC: 'a-to-z',
-  ALPHABETICAL_DESC: 'z-to-a',
-  HIGHEST_PRICE: 'price-desc',
-  LOWEST_PRICE: 'price-asc',
-  BEST_REVIEWED: 'best-reviewed',
-  RELEVANCE: 'relevance',
-};
-
 const EMPTY_SEO = { pageTitle: '', metaDescription: '', metaKeywords: '' };
 
 export async function getCategory(entityId: number): Promise<CategoryPage | null> {
@@ -171,9 +153,12 @@ export async function getCategory(entityId: number): Promise<CategoryPage | null
     breadcrumbs: crumbs
       .filter((edge) => edge !== null)
       .map((edge) => ({ label: edge.node.name, href: edge.node.path ?? '#' })),
-    defaultSort: category.defaultProductSort
-      ? DEFAULT_SORT_MAP[category.defaultProductSort]
-      : undefined,
+    // `fromBcSort`, shared with the store's search default. An earlier local map
+    // here invented `ALPHABETICAL_ASC`/`ALPHABETICAL_DESC`, which are not members
+    // of `CategoryProductSort` — so the real `A_TO_Z`/`Z_TO_A` fell through to
+    // `undefined` and an alphabetically-sorted category never collapsed
+    // `?sort=a-to-z` onto its unfiltered cache entry.
+    defaultSort: fromBcSort(category.defaultProductSort),
     seo: category.seo ?? EMPTY_SEO,
   };
 }

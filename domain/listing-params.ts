@@ -36,6 +36,19 @@ export type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 
 const SORT_VALUES = SORT_OPTIONS.map((option) => option.value);
 
+/**
+ * BigCommerce's sort enum → our URL-facing value.
+ *
+ * The two vocabularies differ (`LOWEST_PRICE` vs `price-asc`), and both a
+ * category's `defaultProductSort` and the store's `defaultSearchProductSort`
+ * arrive in BigCommerce's. Returns `undefined` for anything unrecognized so a new
+ * enum member degrades to "no configured default" rather than producing a sort
+ * value that canonicalization would treat as a real, cache-fragmenting filter.
+ */
+export function fromBcSort(bcSort: string | null | undefined): SortValue | undefined {
+  return SORT_OPTIONS.find((option) => option.bc === bcSort)?.value;
+}
+
 export const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 48;
 

@@ -8,6 +8,7 @@ import { getProduct, getProductIds } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
 import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
 import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-gallery';
+import { Prose } from '~/ui/patterns/prose';
 import { PurchaseForm } from '~/ui/patterns/purchase-form';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
@@ -115,11 +116,8 @@ async function ProductDetail({ params }: Props) {
         {product.description && (
           <section>
             <h2 className="mb-4 text-lg font-semibold">{t('Product.description')}</h2>
-            <div
-              className="prose-sm max-w-prose text-sm text-muted [&_a]:underline [&_p]:mb-3"
-              // Merchant-authored WYSIWYG HTML.
-              dangerouslySetInnerHTML={{ __html: product.description }}
-            />
+            {/* Sanitized in `data/product.ts`; see the contract on `Prose`. */}
+            <Prose className="text-muted" html={product.description} />
           </section>
         )}
 
@@ -241,10 +239,7 @@ function Specifications({ product }: { product: NonNullable<Awaited<ReturnType<t
       {product.warranty && (
         <>
           <h2 className="mt-8 mb-4 text-lg font-semibold">{t('Product.warranty')}</h2>
-          <div
-            className="max-w-prose text-sm text-muted"
-            dangerouslySetInnerHTML={{ __html: product.warranty }}
-          />
+          <Prose className="text-muted" html={product.warranty} />
         </>
       )}
     </section>

@@ -289,8 +289,13 @@ const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
  * and 404 with `RSC: 1` + `Next-Router-Prefetch: 1`, which would silently
  * disable prefetching across the whole storefront. Those requests are exempt;
  * they can only originate from a page the router already resolved legitimately.
+ *
+ * Extended in Phase 5 to blog posts and web pages, which are rewrite targets for
+ * exactly the same reason and were reachable directly — serving the same content
+ * at a second, non-canonical URL for a crawler to index.
  */
-const INTERNAL_ROUTE_ONLY = /^\/(?:category|brand|product)\/\d+\/?$/;
+const INTERNAL_ROUTE_ONLY =
+  /^\/(?:(?:category|brand|product|blog)\/\d+|webpages\/[^/]+\/(?:normal|contact))\/?$/;
 
 /**
  * Paths this application owns outright, which must never be resolved against
@@ -303,7 +308,7 @@ const INTERNAL_ROUTE_ONLY = /^\/(?:category|brand|product)\/\d+\/?$/;
  * is the worst kind. Short-circuiting also saves a KV read and a negative-result
  * lookup on two paths that get real traffic.
  */
-const APP_OWNED_PATH = /^\/(?:cart|checkout)\/?$/;
+const APP_OWNED_PATH = /^\/(?:cart|checkout|search)\/?$/;
 
 const isRscRequest = (request: NextRequest): boolean =>
   request.headers.get('RSC') === '1' || request.headers.get('Next-Router-Prefetch') === '1';

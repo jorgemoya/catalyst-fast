@@ -86,6 +86,58 @@ export function isRetryableStatus(status: number): boolean {
 }
 
 /**
+ * Transient transport failures, as distinct from HTTP errors.
+ *
+ * A `fetch` that never gets a response *throws* rather than returning a non-ok
+ * status, so status-based retry never sees it. That gap took down a real build:
+ * one `UND_ERR_CONNECT_TIMEOUT` during prerendering failed the whole
+ * `next build`, because page prerendering has no retry of its own and a single
+ * TCP connect had the final say over a deploy.
+ *
+ * It matters most exactly when it is most likely — a cold deploy fires every
+ * cache-miss at BigCommerce at once, which is when connections are most apt to
+ * time out.
+ *
+ * `AbortError` is deliberately absent: an aborted request was cancelled on
+ * purpose, and retrying it would defeat the cancellation.
+ */
+const RETRYABLE_NETWORK_CODES = new Set([
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_SOCKET',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  // DNS, which on a fresh container can fail for the first few seconds.
+  'EAI_AGAIN',
+  'ENOTFOUND',
+]);
+
+export function isRetryableNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error) || error.name === 'AbortError') {
+    return false;
+  }
+
+  // undici wraps the real failure: `TypeError: fetch failed` with the code on
+  // `cause`. Walk a couple of levels rather than assuming a depth.
+  let current: unknown = error;
+
+  for (let depth = 0; depth < 3 && current instanceof Error; depth += 1) {
+    const code = (current as Error & { code?: string }).code;
+
+    if (code !== undefined && RETRYABLE_NETWORK_CODES.has(code)) {
+      return true;
+    }
+
+    current = (current as Error & { cause?: unknown }).cause;
+  }
+
+  return false;
+}
+
+/**
  * Retry delay with full jitter. Jitter matters more than the backoff curve here:
  * without it, a synchronized burst (a deploy, a cache purge) retries in lockstep
  * and re-creates the same spike it was meant to spread out.

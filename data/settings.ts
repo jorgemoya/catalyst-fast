@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from 'next/cache';
 
+import { fromBcSort, type SortValue } from '~/domain/listing-params';
 import { tags } from '~/lib/cache/tags';
 import { query } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
@@ -63,6 +64,9 @@ const StoreSettingsQuery = graphql(`
         reviews {
           enabled
         }
+        search {
+          defaultSearchProductSort
+        }
       }
     }
   }
@@ -84,7 +88,23 @@ export interface StoreSettings {
   };
   showProductRating: boolean;
   reviewsEnabled: boolean;
+  /**
+   * The merchant's configured default sort for *search* results, which is a
+   * different setting from a category's `defaultProductSort`. BigCommerce
+   * defaults it to RELEVANCE for textual search.
+   *
+   * Load-bearing for the cache, not just for display: canonicalization drops a
+   * `?sort=` that equals the default, so getting this wrong means every visitor
+   * arriving via the sort dropdown's default option creates a *second* cache
+   * entry identical to the unsorted one.
+   */
+  defaultSearchSort: SortValue;
 }
+
+/** BigCommerce's enum → our URL-facing sort value. Falls back to relevance, which
+ * is BigCommerce's own default for textual search. */
+const toSortValue = (bcSort: string | null | undefined): SortValue =>
+  fromBcSort(bcSort) ?? 'relevance';
 
 export async function getStoreSettings(): Promise<StoreSettings> {
   'use cache';
@@ -121,5 +141,6 @@ export async function getStoreSettings(): Promise<StoreSettings> {
     },
     showProductRating: settings.display?.showProductRating ?? false,
     reviewsEnabled: settings.reviews?.enabled ?? false,
+    defaultSearchSort: toSortValue(settings.search?.defaultSearchProductSort),
   };
 }

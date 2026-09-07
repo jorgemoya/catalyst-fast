@@ -16,6 +16,12 @@ test.describe('header navigation', () => {
     await page.goto('/');
 
     const items = page.locator('nav[aria-label="Main"] > nav > ul > li');
+
+    // Web-first assertion before counting: `count()` does not auto-wait, and the
+    // nav streams in behind a Suspense boundary — so a bare count races the
+    // stream and intermittently sees zero. Same trap documented in product.spec.
+    await expect(items.first()).toBeVisible();
+
     const count = await items.count();
 
     expect(count).toBeGreaterThan(0);

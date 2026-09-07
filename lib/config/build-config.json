@@ -1,9 +1,9 @@
 {
   "urls": {
-    "vanityUrl": "https://catalyst-demo.site",
+    "vanityUrl": "https://catalyst-demo-site.mybigcommerce.com",
     "cdnUrls": [
       "cdn11.bigcommerce.com"
     ],
-    "checkoutUrl": "https://checkout.catalyst-demo.site"
+    "checkoutUrl": "https://catalyst-demo-site.mybigcommerce.com"
   }
 }

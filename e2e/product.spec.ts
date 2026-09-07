@@ -1,15 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-/** A simple product with no options. */
-const SIMPLE = '/zz-plant/';
-/** Two RectangleBoxes options (Size, Color) — the variant-selection path. */
-const WITH_OPTIONS = '/the-cylinder-by-modern-botany/';
+import { OUT_OF_STOCK_PRODUCT, PRODUCT_WITH_OPTIONS, SIMPLE_PRODUCT } from './fixtures';
+
 
 test.describe('product detail shell', () => {
   test('contains everything the Phase 3 bar requires', async ({ page }) => {
     // Title, gallery, description, specs, default price, default stock, CTA —
     // all server-rendered, no interaction required.
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/\S/);
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible();
@@ -21,7 +19,7 @@ test.describe('product detail shell', () => {
   });
 
   test('renders a gallery with selectable thumbnails', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     const thumbs = page.getByRole('button', { name: /View image \d+ of/ });
 
@@ -36,7 +34,7 @@ test.describe('product detail shell', () => {
   });
 
   test('emits valid Product structured data', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     const raw = await page.locator('script[type="application/ld+json"]').innerText();
     const schema: Record<string, unknown> = JSON.parse(raw);
@@ -52,7 +50,7 @@ test.describe('product detail shell', () => {
   });
 
   test('shows related products and reviews', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await expect(page.getByRole('heading', { name: 'You might also like' })).toBeVisible();
     await expect(page.locator('#reviews')).toBeAttached();
@@ -61,7 +59,7 @@ test.describe('product detail shell', () => {
 
 test.describe('variant selection', () => {
   test('renders one control per option', async ({ page }) => {
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
 
     const groups = page.locator('fieldset');
 
@@ -69,7 +67,7 @@ test.describe('variant selection', () => {
   });
 
   test('selecting an option updates the URL without navigating', async ({ page }) => {
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
 
     // Capture the label *before* clicking: `[aria-pressed="false"]` is a live
     // locator, so once this button flips to true it re-resolves to the next
@@ -91,7 +89,7 @@ test.describe('variant selection', () => {
   });
 
   test('a deep-linked selection is applied on load', async ({ page }) => {
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
     await page.locator('fieldset button[aria-pressed="false"]').first().click();
     await expect(page).toHaveURL(/\?/);
 
@@ -105,7 +103,7 @@ test.describe('variant selection', () => {
   });
 
   test('price and CTA stay present through a selection change', async ({ page }) => {
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
 
     await expect(page.getByTestId('product-price')).toHaveText(/\d/);
     await page.locator('fieldset button[aria-pressed="false"]').first().click();
@@ -121,7 +119,7 @@ test.describe('required options', () => {
     // BigCommerce products need not define a default for every option, so a PDP
     // can load with required options unselected. Offering "Add to cart" then
     // would either fail at the API or add the wrong variant.
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
 
     const cta = page.getByTestId('add-to-cart');
     const groups = page.locator('fieldset');
@@ -133,12 +131,28 @@ test.describe('required options', () => {
     await expect(cta).toBeDisabled();
     await expect(cta).toHaveText(/^Select /);
 
-    // Choose one value in each group.
+    /*
+     * Answer every required option, whichever control it renders as. This product
+     * has three — a Swatch, RectangleBoxes, and a **DropdownList** — and the
+     * dropdown is a `<select>` in a `<div>`, not a `<fieldset>` of buttons. An
+     * earlier version of this test only iterated fieldsets, so it left the
+     * dropdown unanswered and read the correctly-disabled CTA as a failure.
+     */
     for (let index = 0; index < groupCount; index += 1) {
       const unset = groups.nth(index).locator('button[aria-pressed="false"]').first();
 
       if (await unset.count()) {
         await unset.click();
+      }
+    }
+
+    for (const select of await page.locator('select[name^="option."]').all()) {
+      const values = await select.locator('option').evaluateAll((options) =>
+        options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+      );
+
+      if (values[0]) {
+        await select.selectOption(values[0]);
       }
     }
 
@@ -151,5 +165,24 @@ test.describe('product routes', () => {
     const response = await page.goto('/product/999999/');
 
     expect(response?.status()).toBe(404);
+  });
+});
+
+test.describe('out of stock', () => {
+  test('disables the CTA and says why', async ({ page }) => {
+    /*
+     * `toCtaState` has always had this branch and it had only ever run against
+     * fixtures — the previous channel had no out-of-stock product. BigCommerce
+     * models "unavailable" (never purchasable) separately from "out of stock"
+     * (temporarily), and conflating them would hide a restock from an interested
+     * shopper, so the label matters as much as the disabled state.
+     */
+    await page.goto(OUT_OF_STOCK_PRODUCT);
+
+    const cta = page.getByTestId('add-to-cart');
+
+    await expect(cta).toBeVisible();
+    await expect(cta).toBeDisabled();
+    await expect(cta).toHaveText('Out of stock');
   });
 });

@@ -8,6 +8,7 @@ import { CartBadge, CartBadgeSkeleton } from './cart-badge';
 import { CategoryNav, CategoryNavSkeleton } from './category-nav';
 import { IconLink } from './icon-link';
 import { MobileNav } from './mobile-nav';
+import { SearchMenu } from './search-menu';
 import { StoreLogo } from './store-logo';
 import { t } from '~/lib/i18n/messages';
 
@@ -43,12 +44,7 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1">
-          <IconLink href="/search" label={t('Header.search')}>
-            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-              <path d="m20 20-3.5-3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-            </svg>
-          </IconLink>
+          <SearchMenu />
 
           <IconLink href="/login" label={t('Header.account')}>
             <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">

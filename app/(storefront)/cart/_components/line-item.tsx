@@ -1,5 +1,5 @@
 import type { CartGiftCertificateLine, CartLine, CartLineOption } from '~/domain/cart';
-import { formatCurrency, formatDate, t } from '~/lib/i18n/messages';
+import { formatCurrency, formatDateOnly, t } from '~/lib/i18n/messages';
 import { Image } from '~/ui/primitives/image';
 import { Link } from '~/ui/primitives/link';
 
@@ -90,11 +90,15 @@ export function LineItemRow({ line }: { line: CartLine }) {
  * Renders the three option kinds. The date case is why `CartLineOption` is a
  * union rather than pre-stringified: formatting is locale-bound, so it happens
  * here rather than inside the cached read.
+ *
+ * `formatDateOnly`, not `formatDate` — a picked calendar date is anchored at UTC
+ * midnight on submission and must be read back in UTC, or every viewer west of
+ * UTC sees the previous day.
  */
 function optionValue(option: CartLineOption): string {
   switch (option.kind) {
     case 'date':
-      return formatDate(option.iso);
+      return formatDateOnly(option.iso);
     case 'number':
       return String(option.value);
     default:

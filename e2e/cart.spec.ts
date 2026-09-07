@@ -1,9 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-/** A simple product with no options — the shortest path to a populated cart. */
-const SIMPLE = '/zz-plant/';
-/** Two RectangleBoxes options (Size, Color). */
-const WITH_OPTIONS = '/the-cylinder-by-modern-botany/';
+import { PRODUCT_WITH_OPTIONS, SIMPLE_PRODUCT } from './fixtures';
+
 
 /**
  * Phase 4's acceptance bar: a guest can go home → PLP → PDP → cart → checkout
@@ -25,7 +23,7 @@ test.describe('add to cart', () => {
      * It fails here, on the first click, which is the only place the bug is
      * visible.
      */
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await expect(page.getByTestId('cart-count')).toHaveCount(0);
 
@@ -36,7 +34,7 @@ test.describe('add to cart', () => {
   });
 
   test('respects the quantity stepper', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await page.getByRole('button', { name: 'Increase quantity' }).click();
     await page.getByRole('button', { name: 'Increase quantity' }).click();
@@ -49,7 +47,7 @@ test.describe('add to cart', () => {
     // The `cartExists` → `addCartLineItems` branch, which the create path never
     // exercises. Getting it wrong is invisible on the first add and loses the
     // shopper's cart on the second.
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await page.getByTestId('add-to-cart').click();
     await expect(page.getByTestId('cart-count')).toHaveText('1');
@@ -73,7 +71,7 @@ test.describe('add to cart', () => {
      */
     // Navigate first so the cookie can be scoped to the real origin, whatever
     // port the suite is running on.
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
 
     await context.addCookies([
       { name: 'cf.cart', value: '00000000-0000-4000-8000-000000000000', url: page.url() },
@@ -86,7 +84,7 @@ test.describe('add to cart', () => {
   });
 
   test('carries a variant selection into the cart', async ({ page }) => {
-    await page.goto(WITH_OPTIONS);
+    await page.goto(PRODUCT_WITH_OPTIONS);
 
     /*
      * Every required option group has to be answered, not just the first: the CTA
@@ -104,6 +102,19 @@ test.describe('add to cart', () => {
       chosen.push(((await choice.textContent()) ?? '').trim());
       await choice.click();
       await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    }
+
+    // Dropdown options render as a <select> outside any fieldset, so they need
+    // answering separately from the button groups above.
+    for (const select of await page.locator('select[name^="option."]').all()) {
+      const values = await select.locator('option').evaluateAll((options) =>
+        options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+      );
+
+      if (values[0]) {
+        await select.selectOption(values[0]);
+        chosen.push(((await select.locator(`option[value="${values[0]}"]`).textContent()) ?? '').trim());
+      }
     }
 
     await expect(page.getByTestId('add-to-cart')).toBeEnabled();
@@ -127,7 +138,7 @@ test.describe('cart page', () => {
   });
 
   test('lists what was added, with a total and a checkout link', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
     await page.getByTestId('add-to-cart').click();
     await expect(page.getByTestId('cart-count')).toHaveText('1');
 
@@ -140,7 +151,7 @@ test.describe('cart page', () => {
   });
 
   test('changes quantity and removes a line', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
     await page.getByTestId('add-to-cart').click();
     await expect(page.getByTestId('cart-count')).toHaveText('1');
 
@@ -159,7 +170,7 @@ test.describe('cart page', () => {
   });
 
   test('rejects an invalid coupon in place, without an error page', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
     await page.getByTestId('add-to-cart').click();
     await expect(page.getByTestId('cart-count')).toHaveText('1');
 
@@ -186,7 +197,7 @@ test.describe('checkout handoff', () => {
   });
 
   test('redirects a populated cart to BigCommerce', async ({ page }) => {
-    await page.goto(SIMPLE);
+    await page.goto(SIMPLE_PRODUCT);
     await page.getByTestId('add-to-cart').click();
     await expect(page.getByTestId('cart-count')).toHaveText('1');
 
