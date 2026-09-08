@@ -4,6 +4,8 @@ import { Footer } from '~/ui/layout/footer';
 import { Header } from '~/ui/layout/header';
 import { CompareDrawerGate } from '~/ui/patterns/compare-gate';
 import { ConsentGate } from '~/ui/patterns/consent-gate';
+import { MerchantScriptsGate } from '~/ui/patterns/merchant-scripts-gate';
+import { ToasterGate } from '~/ui/patterns/toaster-gate';
 
 /**
  * Storefront chrome.
@@ -34,6 +36,22 @@ export default function StorefrontLayout({ children }: { children: ReactNode }) 
       </Suspense>
       <Suspense fallback={null}>
         <CompareDrawerGate />
+      </Suspense>
+
+      {/* Merchant-configured third-party scripts. Cached read; the consent
+          filtering happens in the browser. */}
+      <Suspense fallback={null}>
+        <MerchantScriptsGate />
+      </Suspense>
+
+      {/*
+        The one genuinely dynamic thing in this layout: it reads a cookie *and
+        deletes it*, so unlike consent it cannot be deferred to the browser. Its
+        own boundary keeps that dynamism contained to a hole that streams in
+        after the shell rather than pulling the whole page out of it.
+      */}
+      <Suspense fallback={null}>
+        <ToasterGate />
       </Suspense>
     </div>
   );

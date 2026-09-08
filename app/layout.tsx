@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { buildConfig } from '~/lib/config';
 import { t } from '~/lib/i18n/messages';
+import { WebVitals } from '~/ui/patterns/web-vitals';
 
 import '~/styles/globals.css';
 
@@ -64,6 +65,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {t('Common.skipToContent')}
         </a>
         {children}
+        {/* Field performance data, Vercel-only. Renders nothing elsewhere. */}
+        <WebVitals />
       </body>
     </html>
   );

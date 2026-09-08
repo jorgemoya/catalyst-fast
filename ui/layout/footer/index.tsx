@@ -7,6 +7,7 @@ import { getStoreSettings } from '~/data/settings';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
+import { PaymentIcons } from './payment-icons';
 import { SocialLinks } from './social-links';
 import { t } from '~/lib/i18n/messages';
 
@@ -106,8 +107,9 @@ async function FooterContents() {
         </div>
       </div>
 
-      <div className="mt-12 border-t border-border pt-6 text-xs text-muted">
-        {t('Footer.copyright', { year, storeName: settings.storeName })}
+      <div className="mt-12 flex flex-col gap-4 border-t border-border pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <span>{t('Footer.copyright', { year, storeName: settings.storeName })}</span>
+        <PaymentIcons />
       </div>
     </>
   );

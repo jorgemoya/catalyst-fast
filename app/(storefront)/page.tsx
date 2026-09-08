@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 
 import { getFeaturedProducts, getNewestProducts } from '~/data/products';
+import { getStoreSettings } from '~/data/settings';
 import { Link } from '~/ui/primitives/link';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
+import { NewsletterForm } from '~/ui/patterns/newsletter-form';
 import { t } from '~/lib/i18n/messages';
 
 /**
@@ -37,7 +39,35 @@ export default function HomePage() {
           <NewestProducts />
         </Suspense>
       </Section>
+
+      {/* Setting-gated, and in its own boundary so the signup never delays the
+          product grids above it. */}
+      <Suspense fallback={null}>
+        <Newsletter />
+      </Suspense>
     </>
+  );
+}
+
+/**
+ * Newsletter signup, shown only when the merchant has it enabled.
+ *
+ * Reads the same cached settings entry the rest of the page already uses, so the
+ * gate costs no additional origin request.
+ */
+async function Newsletter() {
+  const { newsletterEnabled } = await getStoreSettings();
+
+  if (!newsletterEnabled) {
+    return null;
+  }
+
+  return (
+    <section className="page-container border-t border-border py-12">
+      <h2 className="text-lg font-semibold">{t('Newsletter.title')}</h2>
+      <p className="mt-2 mb-4 max-w-prose text-sm text-muted">{t('Newsletter.description')}</p>
+      <NewsletterForm />
+    </section>
   );
 }
 

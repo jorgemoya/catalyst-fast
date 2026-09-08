@@ -106,6 +106,13 @@ const envSchema = z.object({
   NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().optional(),
   RECAPTCHA_SECRET_KEY: z.string().optional(),
 
+  /**
+   * Opt-in `/admin` shortcut to the BigCommerce control panel. Off by default:
+   * the route reveals which store backs this storefront, which is needless
+   * surface on a public site. See `app/admin/route.ts`.
+   */
+  ENABLE_ADMIN_REDIRECT: z.string().optional(),
+
   TRAILING_SLASH: z.string().optional(),
   CLIENT_LOGGER: z.string().optional(),
   KV_LOGGER: z.string().optional(),

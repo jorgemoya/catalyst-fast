@@ -78,6 +78,9 @@ const StoreSettingsQuery = graphql(`
             productComparisonsEnabled
           }
         }
+        newsletter {
+          showNewsletterSignup
+        }
         reviews {
           enabled
         }
@@ -113,6 +116,8 @@ export interface StoreSettings {
   cookieConsentEnabled: boolean;
   /** Merchant setting gating the compare checkbox, drawer, and /compare route. */
   productComparisonsEnabled: boolean;
+  /** Merchant setting gating the newsletter signup on the home page. */
+  newsletterEnabled: boolean;
   /**
    * The merchant's configured default sort for *search* results, which is a
    * different setting from a category's `defaultProductSort`. BigCommerce
@@ -157,6 +162,7 @@ export async function getStoreSettings(): Promise<StoreSettings> {
     logo,
     cookieConsentEnabled: settings.privacy?.cookieConsentEnabled ?? false,
     productComparisonsEnabled: settings.storefront.catalog?.productComparisonsEnabled ?? false,
+    newsletterEnabled: settings.newsletter.showNewsletterSignup,
     contact: settings.contact ?? null,
     socialMediaLinks: [...settings.socialMediaLinks],
     seo: settings.seo ?? { pageTitle: '', metaDescription: '', metaKeywords: '' },

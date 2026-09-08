@@ -24,7 +24,8 @@
     "brands": "Brands",
     "about": "About",
     "contact": "Contact",
-    "copyright": "© {year} {storeName}. All rights reserved."
+    "copyright": "© {year} {storeName}. All rights reserved.",
+    "payments": "Payment methods we accept"
   },
   "Listing": {
     "breadcrumb": "Breadcrumb",
@@ -416,5 +417,15 @@
     "neverExpires": "Does not expire",
     "notFound": "We could not find an active gift certificate with that code.",
     "codeRequired": "Enter a gift certificate code."
+  },
+  "Newsletter": {
+    "title": "Stay in the loop",
+    "description": "Occasional emails about new arrivals and offers. Unsubscribe any time.",
+    "email": "Email address",
+    "subscribe": "Subscribe",
+    "subscribing": "Subscribing…",
+    "success": "Thanks — you are on the list.",
+    "invalidEmail": "Enter a valid email address.",
+    "failed": "We could not sign you up just now. Please try again."
   }
 }
