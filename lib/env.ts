@@ -30,6 +30,41 @@ const envSchema = z.object({
    */
   STATIC_PARAMS_LIMIT: z.coerce.number().int().nonnegative().default(100),
 
+  /**
+   * Customer group ids that actually have a price list attached, comma-separated
+   * (e.g. `3,7`). **Empty by default, which is the correct setting for most
+   * stores.**
+   *
+   * The overlay in `data/customer/pricing.ts` used to fire for any non-default
+   * group, inferring "non-default group" implies "different prices". That
+   * inference is wrong: a store can group customers for reasons that have nothing
+   * to do with pricing. Measured against this store, group 3 had *identical*
+   * prices on all 15 products, so every signed-in PDP paid a `CustomerPrices`
+   * round trip to re-derive the number already sitting in the cached shell.
+   *
+   * Group pricing is not discoverable from the Storefront API — price lists live
+   * behind the Management API — so this cannot be detected at runtime and has to
+   * be declared. Declaring nothing costs nothing, which is the right default.
+   */
+  PERSONALIZED_PRICE_GROUPS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((part) => Number(part.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+
+  /**
+   * Signs and encrypts the customer session. Optional on purpose: without it the
+   * storefront runs guest-first exactly as it did through Phase 5, and only
+   * account features go dark. A missing secret must not take down a store that
+   * never enabled accounts. See `lib/auth/index.ts`.
+   */
+  AUTH_SECRET: z.string().optional(),
+  AUTH_TRUST_HOST: z.string().optional(),
+
   TRAILING_SLASH: z.string().optional(),
   CLIENT_LOGGER: z.string().optional(),
   KV_LOGGER: z.string().optional(),

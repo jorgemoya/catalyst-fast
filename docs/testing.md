@@ -101,3 +101,23 @@ is canonicalization working end to end.
   — the demo catalog can't produce more than four active facet groups.
 - **Visual regression.** No screenshot diffing; layout bugs that don't break
   actionability would still slip through.
+
+
+## `pnpm check-graphql` — validate documents against the schema
+
+`tsc --noEmit` does **not** validate GraphQL. gql.tada's document checking runs
+through the `@0no-co/graphqlsp` TypeScript *plugin*, which the editor loads and
+`tsc` does not — so a query that is invalid against the schema typechecks
+cleanly, builds cleanly, and fails at runtime with a 400.
+
+Three shipped this way in one session, all found only by exercising signed-in
+paths against the real API:
+
+| Query | Mistake |
+| --- | --- |
+| `CustomerOrders` | `sortBy: { direction, field }` — the input is an **enum** |
+| `CustomerPrices` | used `$currencyCode` from a fragment without declaring it |
+| `DeleteWishlists` | selected subfields on `result`, which is a `String` |
+
+`gql.tada check` catches all three. Run it alongside typecheck and lint; treat
+errors as failures and deprecation warnings as advisory.

@@ -23,12 +23,11 @@ import { sameInternalUrl, toRouteKeyPath } from './route-key';
  *     token skipped the KV cache entirely and paid a synchronous GraphQL round
  *     trip before the route was even known — a hard perf cliff for logged-in and
  *     B2B traffic. The guest resolution is now cached and shared by everyone.
- *     The narrow case that motivated the bypass (customer-group catalog
- *     visibility, where a restricted product resolves to `null` for guests) is
- *     handled in Phase 6 by a negative-result fallback: only when the cached
- *     answer is "not found" AND a session cookie is present do we re-resolve
- *     with the customer's token. Authenticated results are never written back
- *     into the shared entry.
+ *
+ *     The narrow case that motivated the bypass is customer-group **catalog
+ *     visibility**, where a group-restricted product resolves to `null` for
+ *     guests. This proxy does not support it, deliberately — see the note on
+ *     `getRouteInfo` below.
  *  2. **No locale or analytics concerns.** v1 is single-locale, and the
  *     product-viewed event moves to a client beacon rather than firing from a
  *     `waitUntil` on every non-prefetch product request.
@@ -257,9 +256,35 @@ const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
 
     const parsedStatus = StorefrontStatusCacheSchema.safeParse(statusCache);
     const parsedRoute = RouteCacheSchema.safeParse(routeCache);
+    const route = parsedRoute.success ? parsedRoute.data.route : undefined;
+
+    /*
+     * Customer-group catalog visibility is **not supported here**, on purpose.
+     *
+     * There used to be a negative-result fallback at this point (plan §6.3): when
+     * the cached answer was "not found" and the request carried a session cookie,
+     * re-resolve the route in case the shopper's group could see something guests
+     * cannot. It was removed because it never worked and could not have.
+     *
+     * `getRoute` fetches through `query()`, which by design carries no customer
+     * credential (§3.5) — so the "authenticated" retry re-ran the *identical
+     * guest query* and got the identical `null`. Measured: an authenticated
+     * request to a non-resolving path issued one BigCommerce query every time,
+     * uncached, and still 404'd. Guests, by contrast, cost zero after the first.
+     * That is an unbounded origin-load amplifier on exactly the paths crawlers
+     * and scanners hammer, in exchange for nothing.
+     *
+     * Making it real needs the group id *in the proxy*, which means either
+     * decoding the JWT here (shipping AUTH_SECRET into middleware) or a separate
+     * signed cookie carrying just the group — plus group-keyed catalog caching
+     * downstream, since resolving the route only helps if the PDP and listings
+     * can render the product too. That is a coherent feature, but it is a
+     * feature, not a patch, and it is only worth building for a store that
+     * actually restricts catalog by group.
+     */
 
     return {
-      route: parsedRoute.success ? parsedRoute.data.route : undefined,
+      route,
       status: parsedStatus.success ? parsedStatus.data.status : undefined,
     };
   } catch (error) {
@@ -308,7 +333,7 @@ const INTERNAL_ROUTE_ONLY =
  * is the worst kind. Short-circuiting also saves a KV read and a negative-result
  * lookup on two paths that get real traffic.
  */
-const APP_OWNED_PATH = /^\/(?:cart|checkout|search)\/?$/;
+const APP_OWNED_PATH = /^\/(?:cart|checkout|search|login|register|logout|forgot-password|reset-password)\/?$|^\/(?:account|login\/token)\//;
 
 const isRscRequest = (request: NextRequest): boolean =>
   request.headers.get('RSC') === '1' || request.headers.get('Next-Router-Prefetch') === '1';

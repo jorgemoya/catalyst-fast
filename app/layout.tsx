@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 
 import { buildConfig } from '~/lib/config';
@@ -7,10 +7,25 @@ import { t } from '~/lib/i18n/messages';
 
 import '~/styles/globals.css';
 
-// Self-hosted and preloaded by next/font — no external request, so the CSP stays
-// tight and there is no render-blocking font fetch on the critical path.
-const inter = Inter({
-  subsets: ['latin'],
+/*
+ * Vendored, not fetched at build time.
+ *
+ * `next/font/google` self-hosts what it serves, but it still downloads the font
+ * from Google *during the build*. A build without egress to fonts.gstatic.com
+ * does not fail — it silently ships the fallback stack, so the first anyone
+ * notices is that production is rendering in system-ui. That is a bad failure
+ * mode for an air-gapped or network-restricted CI, and it makes builds
+ * non-reproducible in a way nothing surfaces.
+ *
+ * The file in ./fonts is the exact woff2 `next/font/google` would have fetched
+ * for the latin subset (Inter variable, 48KB). Checked in, so the build has one
+ * fewer network dependency and byte-identical output every time.
+ */
+const inter = localFont({
+  src: './fonts/inter-latin-variable.woff2',
+  // Variable font: one file covers the whole range, so there is no per-weight
+  // request and `font-weight` interpolates continuously.
+  weight: '100 900',
   variable: '--font-inter',
   display: 'swap',
 });

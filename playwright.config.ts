@@ -1,4 +1,15 @@
+import { config as loadEnv } from 'dotenv';
 import { defineConfig, devices } from '@playwright/test';
+
+/*
+ * Playwright does not read `.env.local` — neither for the web server it spawns
+ * nor for the test process itself. Without this, `next start` comes up with no
+ * `AUTH_SECRET` (so every auth flow 500s) and the signed-in suite silently skips
+ * because it can't see the test credentials. Both failures look like "nothing to
+ * do here" rather than "misconfigured", which is the worst way for them to
+ * present.
+ */
+loadEnv({ path: '.env.local', quiet: true });
 
 const PORT = Number(process.env.E2E_PORT ?? 3200);
 const baseURL = `http://127.0.0.1:${PORT}`;
@@ -20,7 +31,20 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npx next start -p ${PORT}`,
+    // Same env the app gets from `pnpm start`, so the server under test
+    // behaves identically to a real one.
+    command: `npx dotenv -e .env.local -- next start -p ${PORT}`,
+    /*
+     * next-auth refuses to build callback URLs from an untrusted `Host` header,
+     * which is the right default — a spoofed Host would otherwise let an attacker
+     * redirect the OAuth/credentials flow to their own domain. It auto-trusts on
+     * Vercel; everywhere else it must be opted into.
+     *
+     * Set here because the suite talks to 127.0.0.1, where the Host cannot be
+     * spoofed by a third party. **A self-hosted deployment needs the same
+     * variable set**, or every auth request fails with an opaque `UntrustedHost`.
+     */
+    env: { AUTH_TRUST_HOST: 'true' },
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

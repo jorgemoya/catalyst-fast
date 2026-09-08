@@ -8,6 +8,8 @@ import { getProduct, getProductIds } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
 import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
 import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-gallery';
+import { PersonalizedPrice } from '~/ui/patterns/personalized-price';
+import { WishlistToggle } from '~/ui/patterns/wishlist-toggle';
 import { Prose } from '~/ui/patterns/prose';
 import { PurchaseForm } from '~/ui/patterns/purchase-form';
 import { Rating } from '~/ui/primitives/rating';
@@ -94,7 +96,14 @@ async function ProductDetail({ params }: Props) {
             {product.brand && (
               <p className="text-2xs tracking-wide text-muted uppercase">{product.brand.name}</p>
             )}
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">{product.name}</h1>
+            <div className="mt-1 flex items-start justify-between gap-4">
+              <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
+              {/* Customer-scoped, so its own boundary — it must never delay the
+                  price or the CTA beside it. */}
+              <Suspense fallback={null}>
+                <WishlistToggle path={product.path} productId={id} />
+              </Suspense>
+            </div>
             <Suspense fallback={null}>
               <ProductRating product={product} />
             </Suspense>
@@ -108,6 +117,16 @@ async function ProductDetail({ params }: Props) {
           */}
           <Suspense fallback={<PurchaseSkeleton />}>
             <Purchase product={product} />
+          </Suspense>
+
+          {/*
+            Group pricing, for the minority of shoppers whose price differs from
+            the catalog. Renders null for guests and default-group customers, so
+            the prerendered price above stands and this costs them nothing. Its
+            own boundary so it can never delay the CTA.
+          */}
+          <Suspense fallback={null}>
+            <PersonalizedPrice productId={id} />
           </Suspense>
         </div>
       </div>

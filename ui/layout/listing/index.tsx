@@ -45,6 +45,21 @@ import { t } from '~/lib/i18n/messages';
  *
  * Every data-reading region calls `searchListing` with the same canonical key, so
  * they share one cache entry and one origin request.
+ *
+ * **The cost, measured, so it does not get relitigated.** Property 2 means the
+ * grid is serialized twice on an unfiltered request: once as the cached fallback
+ * and once as the streamed result. `/shop-all/` ships 24 `<article>` elements
+ * for 12 products — every one exactly doubled. That sounds worse than it is,
+ * because the two copies are near-identical and gzip eats the second one:
+ *
+ *   27.4 KB gzipped as shipped · 25.3 KB with the surplus copies stripped
+ *   → 2.1 KB, about 8% of the payload
+ *
+ * 2.1 KB is a fair price for the unfiltered listing painting instantly from the
+ * static shell, which is the majority of listing traffic. Leave it alone. If it
+ * ever needs to shrink, the move is a *lighter* fallback card (image and title,
+ * no price or rating) rather than giving up the cached fallback — that keeps the
+ * instant paint and roughly halves the duplicate.
  */
 
 interface LayoutProps {

@@ -4,9 +4,9 @@ import { getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
+import { AccountMenu, AccountMenuSkeleton } from './account-menu';
 import { CartBadge, CartBadgeSkeleton } from './cart-badge';
 import { CategoryNav, CategoryNavSkeleton } from './category-nav';
-import { IconLink } from './icon-link';
 import { MobileNav } from './mobile-nav';
 import { SearchMenu } from './search-menu';
 import { StoreLogo } from './store-logo';
@@ -19,11 +19,14 @@ import { t } from '~/lib/i18n/messages';
  * blocks the rest of the header from painting. Logo and nav resolve from public
  * cached reads and land in the prerendered shell.
  *
- * The cart badge is the exception, and the reason the boundaries were there from
- * Phase 1: it reads a cookie, so it is a `'use cache: private'` scope that is
- * excluded from the shell by construction and streams in behind
- * `CartBadgeSkeleton`. It cannot hold up the logo or the nav. Account state joins
- * it in Phase 6.
+ * The cart badge and account menu are the exceptions, and the reason the
+ * boundaries were there from Phase 1: both read a cookie, so both are
+ * `'use cache: private'` scopes, excluded from the shell by construction and
+ * streamed in behind their skeletons. Neither can hold up the logo or the nav.
+ *
+ * Those two holes are the *entire* difference between a guest's page and a
+ * signed-in shopper's — the rest of the header, and the whole page body, is the
+ * same prerendered shell for both.
  */
 export function Header() {
   return (
@@ -46,12 +49,9 @@ export function Header() {
         <div className="flex shrink-0 items-center gap-1">
           <SearchMenu />
 
-          <IconLink href="/login" label={t('Header.account')}>
-            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-              <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
-              <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-            </svg>
-          </IconLink>
+          <Suspense fallback={<AccountMenuSkeleton />}>
+            <AccountMenu />
+          </Suspense>
 
           <Suspense fallback={<CartBadgeSkeleton />}>
             <CartBadge />

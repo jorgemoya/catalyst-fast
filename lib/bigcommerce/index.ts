@@ -65,11 +65,18 @@ export async function query<TResult, TVariables>(
  * mistake invisible at the call site, so `mutate` is banned in `data/` by
  * `scripts/cache-audit.ts` the same way `customerQuery` is.
  *
- * Guest writes only. Once carts are customer-assigned (Phase 6) the write needs
- * the customer's token and goes through `customerQuery` instead.
+ * A customer credential may be passed **explicitly**, and only explicitly. That
+ * is the difference from `customerQuery`, which reads the session itself: a
+ * mutation like logout has to act on a specific token the caller is holding, and
+ * during sign-out there is no session left to read. Making it an argument keeps
+ * the "no ambient credentials" rule intact — nothing here reaches for request
+ * state on its own.
  */
 export async function mutate<TResult, TVariables extends Record<string, unknown>>(
-  request: PublicRequest<TResult, TVariables> & { variables: TVariables },
+  request: PublicRequest<TResult, TVariables> & {
+    variables: TVariables;
+    customerAccessToken?: string;
+  },
 ): Promise<TResult> {
   const { data } = await bc.request<TResult, TVariables>({
     ...request,
