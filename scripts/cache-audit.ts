@@ -40,9 +40,41 @@ const BANNED_IN_PUBLIC = [
   },
 ];
 
+/** Explicit, reasoned exemption. The em dash and reason are required. */
+const DYNAMIC_OPT_OUT = /\/\/\s*cache-audit:\s*dynamic\s*—\s*\S/;
+
 interface Finding {
   file: string;
   message: string;
+}
+
+/**
+ * Slices the source into exported async functions, so each can be checked on its
+ * own.
+ *
+ * A regex rather than a real parse, which is the right trade for a lint of this
+ * size — but it means "the function body" is approximated as *everything up to
+ * the next export*, and the preceding comment block is included so an opt-out
+ * written above the signature counts. Both approximations err toward reporting,
+ * never toward silence.
+ */
+function* exportedFunctions(source: string): Generator<{ name: string; body: string }> {
+  const matches = [...source.matchAll(EXPORTED_ASYNC_FN)];
+
+  for (const [index, match] of matches.entries()) {
+    const name = match[1];
+
+    if (!name || match.index === undefined) {
+      continue;
+    }
+
+    // Back up over any comment immediately preceding the signature.
+    const precedingBreak = source.lastIndexOf('\n\n', match.index);
+    const start = precedingBreak === -1 ? 0 : precedingBreak;
+    const end = matches[index + 1]?.index ?? source.length;
+
+    yield { name, body: source.slice(start, end) };
+  }
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -97,14 +129,34 @@ async function audit(): Promise<Finding[]> {
       }
     }
 
-    // Every public read should declare its cache behavior explicitly. An
-    // undirected async export is almost always an uncached BigCommerce call.
-    const exported = [...source.matchAll(EXPORTED_ASYNC_FN)].map((match) => match[1]);
+    /*
+     * Every public read declares its cache behaviour explicitly — checked **per
+     * function**, not per file.
+     *
+     * This used to test the whole file for any directive, which meant one cached
+     * export made every other export in that file invisible to the audit. That
+     * is not hypothetical: `data/gift-certificates.ts` has a cached settings
+     * read and a deliberately uncached balance lookup, and the file-level check
+     * passed without ever looking at the second one. A file is exactly where
+     * related reads live together, so it is the worst possible granularity.
+     *
+     * A read that genuinely must be dynamic opts out in writing:
+     *
+     *   // cache-audit: dynamic — <why>
+     *   export async function getThing() { … }
+     *
+     * which keeps the exemption next to the code and forces a reason.
+     */
+    for (const { name, body } of exportedFunctions(source)) {
+      if (CACHE_DIRECTIVE.test(body) || DYNAMIC_OPT_OUT.test(body)) {
+        continue;
+      }
 
-    if (exported.length > 0 && !CACHE_DIRECTIVE.test(source)) {
       findings.push({
         file: rel,
-        message: `exports async ${exported.join(', ')} but declares no cache directive`,
+        message:
+          `exports async ${name} with no cache directive. Add one, or opt out with ` +
+          '"// cache-audit: dynamic — <reason>" if it must not be cached.',
       });
     }
   }

@@ -2,12 +2,15 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import { getCart } from '~/data/cart';
+import { getCountries } from '~/data/geography';
 import { getCartId } from '~/lib/cart/session';
 import { t } from '~/lib/i18n/messages';
+import { CheckoutPreconnect } from '~/ui/patterns/checkout-preconnect';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { GiftCertificateRow, LineItemRow } from './_components/line-item';
+import { ShippingEstimator } from './_components/shipping-estimator';
 import { OrderSummary } from './_components/summary';
 
 /**
@@ -70,9 +73,29 @@ async function CartContents() {
         </ul>
       </div>
 
-      <OrderSummary summary={cart.summary} />
+      <div>
+        <CheckoutPreconnect />
+        <OrderSummary summary={cart.summary} />
+
+        {/* In its own boundary: the country list is a separate cached read, and
+            a slow one must not hold up the summary the shopper came for. */}
+        <Suspense fallback={null}>
+          <ShippingEstimatorRegion />
+        </Suspense>
+      </div>
     </div>
   );
+}
+
+/**
+ * Server half of the estimator: reads the cached country list once and hands it
+ * to the client island. `getCountries` uses the `settings` profile, so this is
+ * effectively free after the first request on the whole store.
+ */
+async function ShippingEstimatorRegion() {
+  const countries = await getCountries();
+
+  return <ShippingEstimator countries={countries} />;
 }
 
 function EmptyCart() {

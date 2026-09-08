@@ -28,6 +28,38 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
+
+    /*
+     * Start every test as a shopper who has already answered the cookie banner.
+     *
+     * The banner is `position: fixed` along the bottom of the viewport, so on a
+     * store with cookie consent enabled it sits on top of whatever is down
+     * there and swallows clicks. That is correct behaviour for a consent banner
+     * and a miserable thing to run a test suite against — it surfaced as the
+     * wishlist round-trip failing at an `aria-pressed` assertion, several steps
+     * after the click it had actually eaten.
+     *
+     * Seeding the cookie is also the more realistic baseline: a returning
+     * shopper has made this choice once and never sees the banner again. Tests
+     * that specifically cover the banner should clear this cookie themselves.
+     */
+    storageState: {
+      cookies: [
+        {
+          name: 'cf.consent',
+          value: encodeURIComponent(
+            `i.t:${Date.now()},c.necessary:1,c.functionality:1,c.marketing:1,c.measurement:1`,
+          ),
+          domain: '127.0.0.1',
+          path: '/',
+          expires: -1,
+          httpOnly: false,
+          secure: false,
+          sameSite: 'Lax',
+        },
+      ],
+      origins: [],
+    },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {

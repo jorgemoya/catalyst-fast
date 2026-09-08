@@ -11,6 +11,7 @@ import { type ProductCard, toProductCard } from '~/domain/product-card';
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { PaginationFragment } from '~/lib/bigcommerce/fragments/pagination';
+import { recordCacheMiss } from '~/lib/telemetry';
 import { ProductCardFragment } from '~/lib/bigcommerce/fragments/product-card';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
@@ -262,9 +263,6 @@ async function fetchListing(key: ListingKey): Promise<Listing> {
  */
 
 function logCacheMiss(key: ListingKey): void {
-  if (process.env.CACHE_MISS_LOGGER !== 'true') {
-    return;
-  }
   const shape = [
     key.categoryId !== undefined && 'category',
     key.brandId !== undefined && 'brand',
@@ -281,7 +279,19 @@ function logCacheMiss(key: ListingKey): void {
     key.attributes && `attr×${key.attributes.length}`,
   ].filter(Boolean);
 
-  console.log(`[cache-miss] searchListing shape=${shape.join('+') || 'default'}`);
+  const keyShape = shape.join('+') || 'default';
+
+  /*
+   * The key *shape*, never the key. Cardinality is the entire value of this
+   * metric — `category+sort` is a bucket you can compute a miss rate for,
+   * whereas `category:12+sort:newest` is as unbounded as the search params it
+   * came from and would blow up any metrics backend it reached.
+   */
+  recordCacheMiss('searchListing', keyShape);
+
+  if (process.env.CACHE_MISS_LOGGER === 'true') {
+    console.log(`[cache-miss] searchListing shape=${keyShape}`);
+  }
 }
 
 /** Cached path. Only reached for keys that survive the cardinality cap. */
@@ -321,7 +331,9 @@ function hasFilters(key: ListingKey): boolean {
  * Entry point. Deep refinements bypass the cache entirely rather than filling it
  * with entries that will be read exactly once.
  */
-
+// cache-audit: dynamic — a dispatcher, not a read. It chooses between the
+// cached `cachedListing` and a deliberate cache bypass for high-cardinality
+// keys; a directive here would cache the routing decision itself.
 export async function searchListing(key: ListingKey): Promise<Listing> {
   return shouldBypassCache(key) ? fetchListing(key) : cachedListing(key);
 }
@@ -336,6 +348,9 @@ export async function searchListing(key: ListingKey): Promise<Listing> {
  * hit and this costs nothing extra.
  */
 
+// cache-audit: dynamic — composes two `searchListing` calls, both of which are
+// cached on their own keys. Caching the composition too would duplicate every
+// entry under a third key for no benefit.
 export async function getFacets(key: ListingKey): Promise<Facet[]> {
   const [refined, all] = await Promise.all([searchListing(key), searchListing(defaultKey(key))]);
   return toFacets(all.rawFacets, refined.rawFacets, key);

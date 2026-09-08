@@ -1,7 +1,9 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { Footer } from '~/ui/layout/footer';
 import { Header } from '~/ui/layout/header';
+import { CompareDrawerGate } from '~/ui/patterns/compare-gate';
+import { ConsentGate } from '~/ui/patterns/consent-gate';
 
 /**
  * Storefront chrome.
@@ -23,6 +25,16 @@ export default function StorefrontLayout({ children }: { children: ReactNode }) 
         {children}
       </main>
       <Footer />
+      {/* Both read only cached store settings, never a cookie or a search param,
+          so they stay in the shell. Each decides in the browser whether to
+          appear — the consent banner from its cookie, the compare drawer from
+          sessionStorage. */}
+      <Suspense fallback={null}>
+        <ConsentGate />
+      </Suspense>
+      <Suspense fallback={null}>
+        <CompareDrawerGate />
+      </Suspense>
     </div>
   );
 }

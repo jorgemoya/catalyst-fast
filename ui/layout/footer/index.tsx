@@ -2,6 +2,7 @@ import { cacheLife } from 'next/cache';
 import { Suspense } from 'react';
 
 import { getSiteLinks, getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
+import { getGiftCertificateSettings } from '~/data/gift-certificates';
 import { getStoreSettings } from '~/data/settings';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
@@ -44,10 +45,11 @@ async function getCopyrightYear(): Promise<number> {
 }
 
 async function FooterContents() {
-  const [categories, { brands, pages }, settings, year] = await Promise.all([
+  const [categories, { brands, pages }, settings, giftCertificates, year] = await Promise.all([
     getTopLevelCategories(),
     getSiteLinks(),
     getStoreSettings(),
+    getGiftCertificateSettings(),
     getCopyrightYear(),
   ]);
 
@@ -61,12 +63,21 @@ async function FooterContents() {
     shopLinks.push({ label: t('Common.allCategories'), href: '/shop-all/' });
   }
 
+  /*
+   * Setting-gated. The gift-certificate routes redirect to `/` when the feature
+   * is off, so linking unconditionally would put a link in the footer of every
+   * page that bounces the shopper back to where they started.
+   */
+  const aboutLinks = giftCertificates.enabled
+    ? [...pages, { label: t('GiftCertificates.title'), href: '/gift-certificates/' }]
+    : pages;
+
   return (
     <>
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <FooterColumn heading={t('Footer.shop')} links={shopLinks} />
         <FooterColumn heading={t('Footer.brands')} links={brands} />
-        <FooterColumn heading={t('Footer.about')} links={pages} />
+        <FooterColumn heading={t('Footer.about')} links={aboutLinks} />
 
         <div className="flex flex-col gap-3">
           <h2 className="text-2xs font-semibold tracking-wide uppercase">{t('Footer.contact')}</h2>

@@ -61,6 +61,23 @@ const StoreSettingsQuery = graphql(`
         display {
           showProductRating
         }
+        # Whether the merchant has cookie consent turned on. Read here, in a
+        # cached store-level query, rather than anywhere near a cookie: the
+        # banner itself decides what to show client-side, so no page goes dynamic
+        # for it. See ui/patterns/consent-banner.tsx.
+        privacy {
+          cookieConsentEnabled
+        }
+        # Nested under storefront, not directly on settings — the latter fails
+        # validation with: Cannot query field "catalog" on type "Settings".
+        # (No backticks in this comment: the document is a TS template literal,
+        # so a backtick here terminates the string and the parse errors land
+        # somewhere unrelated.)
+        storefront {
+          catalog {
+            productComparisonsEnabled
+          }
+        }
         reviews {
           enabled
         }
@@ -88,6 +105,14 @@ export interface StoreSettings {
   };
   showProductRating: boolean;
   reviewsEnabled: boolean;
+  /**
+   * Merchant setting. When false there is no banner and every consent category
+   * is permitted — that is the merchant's call to make, not a default to
+   * second-guess. See `domain/consent.ts`.
+   */
+  cookieConsentEnabled: boolean;
+  /** Merchant setting gating the compare checkbox, drawer, and /compare route. */
+  productComparisonsEnabled: boolean;
   /**
    * The merchant's configured default sort for *search* results, which is a
    * different setting from a category's `defaultProductSort`. BigCommerce
@@ -130,6 +155,8 @@ export async function getStoreSettings(): Promise<StoreSettings> {
   return {
     storeName: settings.storeName,
     logo,
+    cookieConsentEnabled: settings.privacy?.cookieConsentEnabled ?? false,
+    productComparisonsEnabled: settings.storefront.catalog?.productComparisonsEnabled ?? false,
     contact: settings.contact ?? null,
     socialMediaLinks: [...settings.socialMediaLinks],
     seo: settings.seo ?? { pageTitle: '', metaDescription: '', metaKeywords: '' },

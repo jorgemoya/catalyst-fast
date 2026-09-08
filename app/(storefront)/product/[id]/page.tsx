@@ -6,6 +6,7 @@ import { getInventorySettings, getProductAvailability } from '~/data/inventory';
 import { getProductPrice } from '~/data/pricing';
 import { getProduct, getProductIds } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
+import { AnalyticsEventOnMount } from '~/ui/patterns/analytics';
 import { Breadcrumbs } from '~/ui/patterns/breadcrumbs';
 import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-gallery';
 import { PersonalizedPrice } from '~/ui/patterns/personalized-price';
@@ -174,7 +175,40 @@ async function ProductDetail({ params }: Props) {
       <Suspense fallback={null}>
         <ProductJsonLd productId={id} />
       </Suspense>
+
+      {/* Fires `product_viewed` once per mount. Inside a boundary because it
+          reads the cached product for the event payload; renders no markup, so
+          a null fallback costs nothing visually. */}
+      <Suspense fallback={null}>
+        <ProductViewedBeacon productId={id} />
+      </Suspense>
     </div>
+  );
+}
+
+/**
+ * Emits the product-view analytics event.
+ *
+ * A Server Component that reads the *already cached* product and hands a plain
+ * serialisable event to a tiny client component. Catalyst instead seeded a
+ * `Streamable` promise through the render so a client leaf could resolve it —
+ * this costs no extra origin request and no promise crosses the boundary.
+ */
+async function ProductViewedBeacon({ productId }: { productId: number }) {
+  const product = await getProduct(productId);
+
+  if (!product) {
+    return null;
+  }
+
+  return (
+    <AnalyticsEventOnMount
+      event={{
+        type: 'product_viewed',
+        productId: product.id,
+        productName: product.name,
+      }}
+    />
   );
 }
 

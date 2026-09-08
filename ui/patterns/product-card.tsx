@@ -5,6 +5,7 @@ import { Link } from '~/ui/primitives/link';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
+import { CompareCheckbox } from './compare-controls';
 import { PriceLabel } from './price';
 import { t } from '~/lib/i18n/messages';
 
@@ -15,6 +16,12 @@ interface Props {
   showRating?: boolean;
   /** Responsive width hint. Without it the browser over-requests from the CDN. */
   sizes?: string;
+  /**
+   * Merchant's `productComparisonsEnabled`. Passed down rather than read here so
+   * the card stays a pure function of its props and no grid turns into N
+   * settings reads.
+   */
+  compareEnabled?: boolean;
 }
 
 /**
@@ -25,7 +32,13 @@ interface Props {
  * cards always render as part of a list whose single query already returned
  * pricing inline — a card that fetched its own price would turn one request into N.
  */
-export function ProductCard({ product, priority, showRating = true, sizes }: Props) {
+export function ProductCard({
+  product,
+  priority,
+  showRating = true,
+  sizes,
+  compareEnabled = false,
+}: Props) {
   return (
     // `relative` is load-bearing, not cosmetic: the title link below stretches
     // itself with `after:absolute after:inset-0`, which resolves against the
@@ -73,6 +86,20 @@ export function ProductCard({ product, priority, showRating = true, sizes }: Pro
         {product.inventoryMessage && (
           <p className="text-xs text-out-of-stock">{product.inventoryMessage}</p>
         )}
+
+        {/* `relative` lifts the checkbox above the stretched title link, which
+            otherwise covers the whole card and swallows the click. */}
+        {compareEnabled ? (
+          <div className="relative mt-1">
+            <CompareCheckbox
+              enabled={compareEnabled}
+              // The card model carries `id` as a string (it is a React key as
+              // well as an entity id); compare works in entity ids.
+              productId={Number(product.id)}
+              productName={product.title}
+            />
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -94,17 +121,20 @@ export function ProductGrid({
   priority,
   showRating,
   className,
+  compareEnabled = false,
 }: {
   products: ProductCardModel[];
   priority?: boolean;
   showRating?: boolean;
   className?: string;
+  compareEnabled?: boolean;
 }) {
   return (
     <ul className={cn('grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4', className)}>
       {products.map((product, index) => (
         <li key={product.id}>
           <ProductCard
+            compareEnabled={compareEnabled}
             // Only the first row is eligible for LCP; priority on everything
             // would deprioritize the one image that actually matters.
             priority={priority && index < 4}

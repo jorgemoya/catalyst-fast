@@ -13,6 +13,8 @@ import {
   parseGraphQLError,
 } from './errors';
 import type { BigCommerceResponse, ClientConfig, ClientRequest } from './types';
+import { attr, traceQuery } from '../../telemetry/index.ts';
+
 import { getBackendUserAgent, getOperationInfo, looksLikeJwt, normalizeQuery } from './utils';
 
 const CLIENT_NAME = 'catalyst-fast-client';
@@ -84,35 +86,51 @@ export class BigCommerceClient {
     const url = this.buildEndpoint(channelId, operation?.name, operation?.type);
     const body = JSON.stringify({ query, ...(variables && { variables }) });
 
-    const send = async (): Promise<BigCommerceResponse<TResult>> => {
-      const response = await this.fetchWithRetry(url, body, {
-        headers,
-        customerAccessToken,
-        validateCustomerAccessToken,
-        fetchOptions,
+    /*
+     * Every call that gets here is a cache miss by construction — a cached
+     * function that hits never runs its body, so it never reaches the client.
+     * That makes this the correct and only place to count origin load.
+     */
+    const send = async (): Promise<BigCommerceResponse<TResult>> =>
+      traceQuery(operation?.name ?? 'anonymous', async (span) => {
+        const response = await this.fetchWithRetry(url, body, {
+          headers,
+          customerAccessToken,
+          validateCustomerAccessToken,
+          fetchOptions,
+        });
+
+        span.setAttribute(attr.status, response.status);
+
+        const complexity = response.headers.get('x-bc-graphql-complexity');
+
+        if (complexity) {
+          // BigCommerce enforces a complexity budget per request; p99 on this
+          // is the signal that a query has quietly grown too broad.
+          span.setAttribute(attr.complexity, Number(complexity));
+        }
+
+        const result = (await response.json()) as BigCommerceResponse<TResult>;
+        const { errors, ...data } = result;
+
+        if (errors) {
+          const error = parseGraphQLError(errors);
+
+          if (errorPolicy === 'none') {
+            throw error;
+          }
+
+          if (errorPolicy === 'auth' && error instanceof BigCommerceAuthError) {
+            throw error;
+          }
+        }
+
+        if (errorPolicy === 'ignore') {
+          return data as BigCommerceResponse<TResult>;
+        }
+
+        return result;
       });
-
-      const result = (await response.json()) as BigCommerceResponse<TResult>;
-      const { errors, ...data } = result;
-
-      if (errors) {
-        const error = parseGraphQLError(errors);
-
-        if (errorPolicy === 'none') {
-          throw error;
-        }
-
-        if (errorPolicy === 'auth' && error instanceof BigCommerceAuthError) {
-          throw error;
-        }
-      }
-
-      if (errorPolicy === 'ignore') {
-        return data as BigCommerceResponse<TResult>;
-      }
-
-      return result;
-    };
 
     // Only coalesce anonymous reads. Customer-scoped requests must never share a
     // response across identities, and mutations must never be deduplicated.

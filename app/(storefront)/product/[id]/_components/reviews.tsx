@@ -1,5 +1,6 @@
 import { getProductReviews } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
+import { ReviewForm } from '~/ui/patterns/review-form';
 import { ReviewList } from '~/ui/patterns/review-list';
 import { Skeleton } from '~/ui/primitives/skeleton';
 import { t } from '~/lib/i18n/messages';
@@ -11,8 +12,10 @@ import { t } from '~/lib/i18n/messages';
  * off should show no section at all, not an empty one.
  *
  * The first page is fetched here on the server so it lands in the static shell
- * and is crawlable; `ReviewList` only appends subsequent pages. Submission is
- * deferred, since it needs reCAPTCHA and a validated server action.
+ * and is crawlable; `ReviewList` only appends subsequent pages.
+ *
+ * `ReviewForm` is a client island that renders a single button until opened, so
+ * the reading majority never downloads the form's field markup.
  */
 export async function ProductReviews({ productId }: { productId: number }) {
   const [settings, page] = await Promise.all([
@@ -34,6 +37,10 @@ export async function ProductReviews({ productId }: { productId: number }) {
         initialReviews={page.reviews}
         productId={productId}
       />
+
+      <div className="mt-8">
+        <ReviewForm productId={productId} />
+      </div>
     </section>
   );
 }

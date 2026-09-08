@@ -18,6 +18,24 @@ const envSchema = z.object({
 
   BC_MAX_CONCURRENCY: z.coerce.number().int().positive().default(16),
 
+  /**
+   * Shared secret for the webhook receiver, sent by BigCommerce as
+   * `x-webhook-token` because BigCommerce does not sign webhook bodies.
+   *
+   * Optional in the schema but **fails closed at the endpoint**: with no secret
+   * configured the receiver 401s everything. An unauthenticated cache-purge URL
+   * is a denial-of-service lever pointed at your own origin, so "not configured"
+   * must mean "refuses traffic", never "accepts anything".
+   */
+  BIGCOMMERCE_WEBHOOK_SECRET: z.string().optional(),
+
+  /**
+   * Management API token (not the storefront token) and the publicly reachable
+   * origin, used only by `scripts/register-webhooks.ts`. Never read at runtime.
+   */
+  BIGCOMMERCE_ACCESS_TOKEN: z.string().optional(),
+  WEBHOOK_DESTINATION_ORIGIN: z.string().optional(),
+
   KV_NAMESPACE: z.string().optional(),
   KV_MEMORY_MAX_ENTRIES: z.coerce.number().int().positive().default(4096),
   UPSTASH_REDIS_REST_URL: z.string().optional(),
@@ -64,6 +82,29 @@ const envSchema = z.object({
    */
   AUTH_SECRET: z.string().optional(),
   AUTH_TRUST_HOST: z.string().optional(),
+
+  /**
+   * Analytics providers. Each is independently optional and self-disabling — a
+   * provider with no credentials reports `enabled: false` and is skipped, so the
+   * storefront ships measuring nothing until a merchant opts in.
+   *
+   * Not read through this schema at send time (see `lib/analytics/types.ts` on
+   * why `enabled()` is a function), but declared here so the full set of
+   * configuration is discoverable in one place.
+   */
+  GA_MEASUREMENT_ID: z.string().optional(),
+  GA_API_SECRET: z.string().optional(),
+  BIGCOMMERCE_DATA_EVENTS_TOKEN: z.string().optional(),
+
+  /**
+   * reCAPTCHA v3. The site key is public and **must** carry the NEXT_PUBLIC_
+   * prefix to reach the browser; the secret key must never have it. Both must be
+   * present for verification to engage at all — with either missing,
+   * `verifyRecaptcha` returns true so an unconfigured install still accepts
+   * reviews and contact messages.
+   */
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().optional(),
+  RECAPTCHA_SECRET_KEY: z.string().optional(),
 
   TRAILING_SLASH: z.string().optional(),
   CLIENT_LOGGER: z.string().optional(),

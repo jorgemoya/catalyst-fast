@@ -255,6 +255,14 @@ async function shouldShowRating(): Promise<boolean> {
   return settings.reviewsEnabled && settings.showProductRating;
 }
 
+/**
+ * Both grid variants need this, and it comes from the same cached settings entry
+ * every other region already reads — so it costs no additional origin request.
+ */
+async function compareEnabled(): Promise<boolean> {
+  return (await getStoreSettings()).productComparisonsEnabled;
+}
+
 /* ── Prerendered variants: no `searchParams` access anywhere below here ────── */
 
 async function DefaultGrid({
@@ -265,13 +273,24 @@ async function DefaultGrid({
   emptyState: ReactNode;
 }) {
   const key = defaultKey(canonicalizeListingParams({}, options));
-  const [listing, showRating] = await Promise.all([searchListing(key), shouldShowRating()]);
+  const [listing, showRating, compare] = await Promise.all([
+    searchListing(key),
+    shouldShowRating(),
+    compareEnabled(),
+  ]);
 
   if (listing.products.length === 0) {
     return emptyState;
   }
 
-  return <ProductGrid priority products={listing.products} showRating={showRating} />;
+  return (
+    <ProductGrid
+      compareEnabled={compare}
+      priority
+      products={listing.products}
+      showRating={showRating}
+    />
+  );
 }
 
 async function DefaultResultCount({ options }: { options: CanonicalizeOptions }) {
@@ -307,7 +326,11 @@ async function RefinedGrid({
 }: RegionProps & { emptyState: ReactNode }) {
   const raw = await searchParams;
   const key = canonicalizeListingParams(raw, options);
-  const [listing, showRating] = await Promise.all([searchListing(key), shouldShowRating()]);
+  const [listing, showRating, compare] = await Promise.all([
+    searchListing(key),
+    shouldShowRating(),
+    compareEnabled(),
+  ]);
 
   if (listing.products.length === 0) {
     return emptyState;
@@ -315,7 +338,12 @@ async function RefinedGrid({
 
   return (
     <>
-      <ProductGrid priority products={listing.products} showRating={showRating} />
+      <ProductGrid
+        compareEnabled={compare}
+        priority
+        products={listing.products}
+        showRating={showRating}
+      />
       <Pagination pagination={listing.pagination} pathname={pathname} searchParams={raw} />
     </>
   );

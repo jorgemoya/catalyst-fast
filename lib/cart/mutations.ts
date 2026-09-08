@@ -195,6 +195,62 @@ export async function addToOrCreateCart(lineItem: CartLineInput): Promise<string
   return cartId;
 }
 
+export interface GiftCertificateLineInput {
+  name: string;
+  /** Narrowed to BigCommerce's enum — the schema rejects anything else. */
+  theme: 'BIRTHDAY' | 'BOY' | 'CELEBRATION' | 'CHRISTMAS' | 'GENERAL' | 'GIRL' | 'NONE';
+  amount: number;
+  quantity: number;
+  sender: { name: string; email: string };
+  recipient: { name: string; email: string };
+  message: string;
+}
+
+/**
+ * Adds a gift certificate line.
+ *
+ * Structurally the same as `addToOrCreateCart` but a separate function because
+ * BigCommerce takes gift certificates through a *different input field* —
+ * `data.giftCertificates`, not `data.lineItems`. They are not products: they
+ * have no catalog entry, no inventory, and carry sender and recipient details
+ * that only exist here.
+ */
+export async function addGiftCertificateToCart(
+  giftCertificate: GiftCertificateLineInput,
+): Promise<string> {
+  const existingId = await getCartId();
+
+  if (existingId && (await cartExists(existingId))) {
+    const data = await mutate({
+      document: AddCartLineItemsMutation,
+      variables: {
+        input: { cartEntityId: existingId, data: { giftCertificates: [giftCertificate] } },
+      },
+    });
+
+    if (!data.cart.addCartLineItems?.cart?.entityId) {
+      throw new CartError('add-failed');
+    }
+
+    return existingId;
+  }
+
+  const data = await mutate({
+    document: CreateCartMutation,
+    variables: { input: { giftCertificates: [giftCertificate] } },
+  });
+
+  const cartId = data.cart.createCart?.cart?.entityId;
+
+  if (!cartId) {
+    throw new CartError('add-failed');
+  }
+
+  await setCartId(cartId);
+
+  return cartId;
+}
+
 export async function updateLineItemQuantity(
   cartId: string,
   lineItemEntityId: string,

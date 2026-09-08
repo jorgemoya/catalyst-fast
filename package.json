@@ -10,6 +10,8 @@
   "scripts": {
     "generate": "dotenv -e .env.local -- node ./scripts/generate.cjs",
     "build-config": "dotenv -e .env.local -- tsx ./scripts/build-config.ts",
+    "register-webhooks": "dotenv -e .env.local -- tsx ./scripts/register-webhooks.ts",
+    "warm-cache": "dotenv -e .env.local -- tsx ./scripts/warm-cache.ts",
     "predev": "npm run build-config",
     "dev": "dotenv -e .env.local -- next dev",
     "prebuild": "npm run build-config",
@@ -28,6 +30,7 @@
     "@base-ui/react": "^1.6.0",
     "@conform-to/react": "^1.21.1",
     "@conform-to/zod": "^1.21.1",
+    "@opentelemetry/api": "^1.9.1",
     "@upstash/redis": "^1.35.0",
     "@vercel/functions": "^2.2.12",
     "clsx": "^2.1.1",
