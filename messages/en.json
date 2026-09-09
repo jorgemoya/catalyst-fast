@@ -226,7 +226,8 @@
       "rma": "RMA number",
       "email": "Email",
       "comments": "Message"
-    }
+    },
+    "botCheckFailed": "We could not verify that request. Please try again."
   },
   "Auth": {
     "signIn": "Sign in",
@@ -275,7 +276,8 @@
     "changePassword": "Change password",
     "passwordChanged": "Your password has been changed.",
     "changePasswordFailed": "We couldn't change your password.",
-    "security": "Security"
+    "security": "Security",
+    "botCheckFailed": "We could not verify that request. Please try again."
   },
   "Account": {
     "noOrdersTitle": "No orders yet",

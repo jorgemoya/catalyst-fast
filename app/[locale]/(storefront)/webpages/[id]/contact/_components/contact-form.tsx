@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useActionState } from 'react';
 
 import type { ContactField } from '~/domain/contact';
+import { RecaptchaField } from '~/ui/patterns/recaptcha-field';
 
 import { submitContactForm } from '../_actions/submit';
 
@@ -81,6 +82,10 @@ export function ContactForm({ nodeId, fields }: { nodeId: string; fields: Contac
       >
         {isPending ? t('Contact.sending') : t('Contact.submit')}
       </button>
+
+      {/* Renders nothing when no site key is configured, so an install without
+          reCAPTCHA keeps working. */}
+      <RecaptchaField action="contact" />
 
       {formErrors.length > 0 && (
         <p className="text-sm text-error" role="alert">

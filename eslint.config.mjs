@@ -65,6 +65,40 @@ const config = [
   },
   {
     /**
+     * `next-intl/server` is request-scoped and unusable from a cached scope.
+     *
+     * Not a style rule — it cost a real outage-shaped bug. `getTranslations()`
+     * and `getFormatter()` cannot reach the request config from inside
+     * `'use cache'`, so next-intl falls back to an **undefined locale and says
+     * nothing**. One listing page render produced 336 `Incorrect locale
+     * information provided` errors while the config resolved 5 times, and the
+     * damage was invisible on plain lookups — only ICU-parameterized messages and
+     * money formatting broke, on cached pages, in the non-default locale.
+     *
+     * `~/lib/i18n/server` does the same job from the locale root param, which is
+     * part of the route rather than the request and therefore legal in a cached
+     * body. `i18n/request.ts` is the one legitimate importer: `getRequestConfig`
+     * is how the config is *defined*, not consumed.
+     */
+    files: ['app/**/*.{ts,tsx}', 'ui/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}', 'data/**/*.{ts,tsx}'],
+    ignores: ['i18n/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'next-intl/server',
+              message:
+                'Request-scoped: silently yields an undefined locale inside `use cache`. Use ~/lib/i18n/server, which reads the locale root param.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    /**
      * Links must carry the active locale.
      *
      * `next/link` renders the href verbatim, and an unprefixed href is read by

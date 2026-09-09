@@ -4,6 +4,8 @@ import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 
+import { verifyRecaptcha } from '~/lib/recaptcha';
+
 import { getWebpage } from '~/data/content';
 import { contactSchema, type ContactMessages, toContactSubmission } from '~/domain/contact';
 import { decodeNodeId } from '~/domain/node-id';
@@ -19,11 +21,12 @@ import { graphql } from '~/lib/bigcommerce/graphql';
  * cached read, so it costs nothing, and it means a crafted POST cannot add
  * fields the merchant never enabled.
  *
- * reCAPTCHA is deferred to Phase 7 along with the rest of the spam-protection
- * work. Worth stating plainly rather than leaving implicit: **this endpoint is
- * currently unprotected**, and a public contact form without it will be found by
- * spammers. BigCommerce accepts an optional `reCaptchaV2` argument on this
- * mutation, so wiring it is additive.
+ * **reCAPTCHA guards this endpoint.** A public contact form without it will be
+ * found by spammers; that is not a prediction, it is what happens to every
+ * unguarded contact form on the internet.
+ *
+ * Verified after schema validation, matching `submit-review.ts`, so a stale
+ * token does not mask the shopper's field errors.
  */
 
 const SubmitContactUsMutation = graphql(`
@@ -73,6 +76,12 @@ export async function submitContactForm(
 
   if (submission.status !== 'success') {
     return submission.reply();
+  }
+
+  const human = await verifyRecaptcha(submission.value.recaptchaToken, 'contact');
+
+  if (!human) {
+    return formError(t('Contact.botCheckFailed'));
   }
 
   try {

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 import { mutate } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
+import { resolveAttribution } from '~/lib/analytics/attribution';
 import { getCartId } from '~/lib/cart/session';
 
 /**
@@ -17,16 +18,18 @@ import { getCartId } from '~/lib/cart/session';
  * putting it inside would render a header and footer that are immediately thrown
  * away.
  *
- * Analytics attribution (visit/visitor ids and per-category consent flags, which
- * BigCommerce accepts on the `analytics` input) is deferred to Phase 7 along with
- * the consent manager that produces them. The field is optional; omitting it
- * costs attribution, not correctness.
+ * **Analytics attribution travels with the handoff.** BigCommerce ties the
+ * hosted-checkout session back to the storefront visit that produced it, so
+ * omitting the `analytics` input leaves every order unattributed. The consent
+ * flags are forwarded whether or not the shopper consented — that is what makes
+ * the decision binding on BigCommerce's side — while the visitor identity is
+ * sent only with measurement consent. See `lib/analytics/attribution.ts`.
  */
 
 const CheckoutRedirectMutation = graphql(`
-  mutation CreateCartRedirectUrls($cartId: String!) {
+  mutation CreateCartRedirectUrls($cartId: String!, $analytics: AnalyticsCommonEventInput) {
     cart {
-      createCartRedirectUrls(input: { cartEntityId: $cartId }) {
+      createCartRedirectUrls(input: { cartEntityId: $cartId, analytics: $analytics }) {
         errors {
           ... on NotFoundError {
             __typename
@@ -58,9 +61,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const attribution = await resolveAttribution();
+
     const data = await mutate({
       document: CheckoutRedirectMutation,
-      variables: { cartId },
+      variables: {
+        cartId,
+        analytics: {
+          /*
+           * `initiator` is nullable in the schema; `request` and `consent` are
+           * not. So a shopper who declined measurement still forwards their
+           * decision and the request context, just no identifier.
+           */
+          ...(attribution.initiator && { initiator: attribution.initiator }),
+          request: {
+            url: request.url,
+            userAgent: request.headers.get('user-agent') ?? '',
+            // Nullable, and genuinely absent on a direct navigation — sending
+            // an empty string would claim a referrer of "".
+            refererUrl: request.headers.get('referer') || null,
+            acceptLanguage: request.headers.get('accept-language') || null,
+          },
+          consent: attribution.consent,
+        },
+      },
     });
 
     const result = data.cart.createCartRedirectUrls;

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useActionState } from 'react';
 
 import { TextField } from '~/ui/patterns/form-field';
+import { RecaptchaField } from '~/ui/patterns/recaptcha-field';
 
 import { register } from '../../_actions/register';
 
@@ -33,6 +34,10 @@ export function RegisterForm() {
           {formErrors.join(' ')}
         </p>
       )}
+
+      {/* Renders nothing when no site key is configured, so an install without
+          reCAPTCHA keeps working. */}
+      <RecaptchaField action="register" />
 
       <button
         className="h-11 self-start rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"

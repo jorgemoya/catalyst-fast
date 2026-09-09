@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "check-graphql": "gql.tada check",
     "cache-audit": "tsx ./scripts/cache-audit.ts",
+    "dead-exports": "tsx ./scripts/dead-exports.ts",
     "test": "vitest run",
     "e2e": "playwright test",
     "test:watch": "vitest"

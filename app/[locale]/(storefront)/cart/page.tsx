@@ -5,7 +5,9 @@ import { Suspense } from 'react';
 import { getCart } from '~/data/cart';
 import { getCountries } from '~/data/geography';
 import { getCartId } from '~/lib/cart/session';
+import { getWalletButtons } from '~/data/wallets';
 import { CheckoutPreconnect } from '~/ui/patterns/checkout-preconnect';
+import { WalletButtons } from '~/ui/patterns/wallet-buttons';
 import { Link } from '~/ui/primitives/link';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
@@ -90,6 +92,15 @@ async function CartContents() {
         <CheckoutPreconnect />
         <OrderSummary summary={cart.summary} />
 
+        {/* Its own boundary, and `fallback={null}` on purpose: wallet buttons
+            reach two BigCommerce queries plus an external SDK, and a merchant
+            with no wallets configured gets nothing at all. A skeleton would
+            promise a button that may never arrive. The ordinary checkout link
+            above is unaffected either way. */}
+        <Suspense fallback={null}>
+          <WalletButtonsRegion cartId={cart.id} summary={cart.summary} />
+        </Suspense>
+
         {/* In its own boundary: the country list is a separate cached read, and
             a slow one must not hold up the summary the shopper came for. */}
         <Suspense fallback={null}>
@@ -146,4 +157,56 @@ function CartSkeleton() {
       <Skeleton className="h-80 w-full" />
     </div>
   );
+}
+
+/**
+ * Server half of the express-checkout buttons.
+ *
+ * Resolves the wallet options on the server so the single-use session material
+ * never has to be re-derived in the browser, then hands the client component a
+ * plain array. Failures are swallowed to `null`: a wallet provider being down,
+ * or the alpha API changing shape, must not take the cart page with it.
+ */
+async function WalletButtonsRegion({
+  cartId,
+  summary,
+}: {
+  cartId: string;
+  summary: { grandTotal: { value: number; currencyCode: string } | null };
+}) {
+  const total = summary.grandTotal;
+
+  if (!total) {
+    return null;
+  }
+
+  /*
+   * From `Intl`, not hardcoded: JPY has 0 decimal places and KWD has 3, and a
+   * wallet told the wrong scale charges the wrong amount by a factor of 100.
+   * Cheaper and more accurate than a second BigCommerce query for it.
+   */
+  const decimalPlaces =
+    new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: total.currencyCode,
+    }).resolvedOptions().maximumFractionDigits ?? 2;
+
+  /*
+   * The `try` covers the fetch only — never the render. JSX returned from inside
+   * a `catch` is a lie: React renders it later, so nothing thrown during render
+   * would be caught here anyway. An error boundary is the tool for that.
+   */
+  let options: Awaited<ReturnType<typeof getWalletButtons>> = [];
+
+  try {
+    options = await getWalletButtons(cartId, total.currencyCode, total.value, decimalPlaces);
+  } catch (error) {
+    // A wallet provider being down, or the alpha API changing shape, must not
+    // take the cart page with it — the ordinary checkout link still works.
+    console.error('[cart] wallet buttons', error);
+
+    return null;
+  }
+
+  return <WalletButtons options={options} />;
 }

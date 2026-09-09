@@ -226,7 +226,8 @@
       "rma": "Número de RMA",
       "email": "Correo electrónico",
       "comments": "Mensaje"
-    }
+    },
+    "botCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo."
   },
   "Auth": {
     "signIn": "Iniciar sesión",
@@ -275,7 +276,8 @@
     "changePassword": "Cambiar contraseña",
     "passwordChanged": "Tu contraseña se ha cambiado.",
     "changePasswordFailed": "No hemos podido cambiar tu contraseña.",
-    "security": "Seguridad"
+    "security": "Seguridad",
+    "botCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo."
   },
   "Account": {
     "noOrdersTitle": "Todavía no hay pedidos",

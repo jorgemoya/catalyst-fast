@@ -51,11 +51,25 @@ export const SHELL_PROFILES = [
   'product',
   'content',
   'reviews',
-  'route',
   'price',
   'listing',
 ] as const;
 
+/*
+ * There is deliberately no `route` profile.
+ *
+ * The plan called for a `'use cache'` in-app fallback beside the proxy's KV
+ * route lookup, and the profile was registered for it. The fallback was never
+ * built — `data/routing.ts` has no cached functions at all — so the profile sat
+ * with zero consumers, which is the same dead-config pattern that had
+ * `channelFor().channelId` silently ignored and `defaultKey` dropping the
+ * currency. Registering a profile nothing calls makes the cache model look
+ * richer than it is.
+ *
+ * Route resolution lives entirely in `proxies/with-routes.ts` against KV, with
+ * its own 30m/7d window. If the in-app fallback is ever built, add the profile
+ * back with it, not before.
+ */
 export const cacheProfiles = {
   // ── In the static shell (stale >= MIN_SHELL_STALE) ──────────────────────────
   /** Site settings, currencies, tax display, inventory display settings. */
@@ -68,8 +82,6 @@ export const cacheProfiles = {
   content: { stale: 300, revalidate: 3600, expire: 604_800 },
   /** Product reviews (read path). */
   reviews: { stale: 300, revalidate: 3600, expire: 86_400 },
-  /** Route resolution fallback. Mirrors the proxy KV window (30m logical / 7d). */
-  route: { stale: 300, revalidate: 1800, expire: 604_800 },
   /**
    * Prices. `stale: 300` is deliberate: it puts the default-variant price in the
    * prerendered shell. Personalized prices never come through here — see

@@ -31,6 +31,17 @@ export const cspHeader = builder({
  *   imgSrc      https://cdn11.bigcommerce.com                    (product imagery)
  *   fontSrc     'self'                                           (fonts are vendored — see app/layout.tsx)
  *
+ * Wallet buttons need more, and they are the reason to get this right before
+ * enabling anything: the SDK is fetched from BigCommerce's CDN at runtime and
+ * each provider mounts a cross-origin iframe.
+ *
+ *   scriptSrc   https://checkout-sdk.bigcommerce.com              (the loader)
+ *   connectSrc  'self'                                            (SDK GraphQL, via /graphql)
+ *   frameSrc    the provider origins Apple Pay / Google Pay /
+ *               PayPal mount into — determined by which wallets
+ *               the merchant enables, so they cannot be listed
+ *               ahead of that decision
+ *
  * Analytics needs no entries: the provider fan-out happens server-side, which is
  * most of the reason it was built that way.
  */

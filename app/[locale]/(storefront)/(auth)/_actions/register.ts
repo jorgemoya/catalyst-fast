@@ -3,6 +3,8 @@
 import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
+
+import { verifyRecaptcha } from '~/lib/recaptcha';
 import { redirect } from 'next/navigation';
 
 import { registerSchema } from '~/domain/registration';
@@ -20,10 +22,14 @@ import { getCartId } from '~/lib/cart/session';
  * was never merged. Signing in immediately routes them through the same
  * `guestCartEntityId` merge every other login uses.
  *
- * reCAPTCHA is deferred to Phase 7 with the rest of the spam-protection work.
- * `registerCustomer` takes an optional `reCaptchaV2`, so wiring it is additive —
- * but until then **this endpoint is unprotected**, which matters more here than
- * on the contact form: each submission creates a real customer record.
+ * **reCAPTCHA guards this endpoint**, and it matters more here than on the
+ * contact form: each submission creates a real customer record, so an unguarded
+ * form lets a bot fill the merchant's customer list.
+ *
+ * Verified after schema validation, matching `submit-review.ts`: a shopper whose
+ * token expired while they were filling the form still gets their field errors
+ * rather than a bot-check failure that hides them. The action name is bound into
+ * the token, so one minted on another form cannot be replayed here.
  */
 
 const RegisterMutation = graphql(`
@@ -68,6 +74,12 @@ export async function register(
 
   if (submission.status !== 'success') {
     return submission.reply();
+  }
+
+  const human = await verifyRecaptcha(submission.value.recaptchaToken, 'register');
+
+  if (!human) {
+    return formError(t('Auth.botCheckFailed'));
   }
 
   const { email, password, firstName, lastName, company, phone } = submission.value;
