@@ -275,7 +275,9 @@ async function DefaultGrid({
   options: CanonicalizeOptions;
   emptyState: ReactNode;
 }) {
-  const key = defaultKey(canonicalizeListingParams({}, options));
+  const key = defaultKey(
+    canonicalizeListingParams({}, { ...options, currency: await getDefaultCurrency() }),
+  );
   const [listing, showRating, compare] = await Promise.all([
     searchListing(key),
     shouldShowRating(),
@@ -297,7 +299,9 @@ async function DefaultGrid({
 }
 
 async function DefaultResultCount({ options }: { options: CanonicalizeOptions }) {
-  const { totalItems } = await searchListing(defaultKey(canonicalizeListingParams({}, options)));
+  const { totalItems } = await searchListing(
+    defaultKey(canonicalizeListingParams({}, { ...options, currency: await getDefaultCurrency() })),
+  );
 
   return <CountText total={totalItems} />;
 }
@@ -314,7 +318,9 @@ async function DefaultFacets({
   options: CanonicalizeOptions;
   pathname: string;
 }) {
-  const facets = await getFacets(defaultKey(canonicalizeListingParams({}, options)));
+  const facets = await getFacets(
+    defaultKey(canonicalizeListingParams({}, { ...options, currency: await getDefaultCurrency() })),
+  );
 
   return <Facets facets={facets} hasActiveFilters={false} pathname={pathname} searchParams={{}} />;
 }
@@ -337,13 +343,14 @@ async function RefinedGrid({
    * channel default, which is what keeps the unfiltered listing static for the
    * overwhelming majority who never switch currency.
    *
-   * `canonicalizeListingParams` drops the currency from the key when it equals
-   * the default, so a USD shopper computes exactly the key that was prerendered.
+   * The currency is always explicit now — see `CanonicalizeOptions`. A shopper on
+   * the channel default computes the same key the shell was prerendered with,
+   * because that path passes the same locale default rather than passing nothing
+   * and hoping BigCommerce agrees about what "default" meant.
    */
   const key = canonicalizeListingParams(raw, {
     ...options,
     currency: await getSelectedCurrency(),
-    defaultCurrency: await getDefaultCurrency(),
   });
   const [listing, showRating, compare] = await Promise.all([
     searchListing(key),
@@ -375,7 +382,10 @@ async function RefinedResultCount({
   options: CanonicalizeOptions;
   searchParams: Promise<RawSearchParams>;
 }) {
-  const key = canonicalizeListingParams(await searchParams, options);
+  const key = canonicalizeListingParams(await searchParams, {
+    ...options,
+    currency: await getSelectedCurrency(),
+  });
   const { totalItems } = await searchListing(key);
 
   return <CountText total={totalItems} />;
@@ -383,7 +393,10 @@ async function RefinedResultCount({
 
 async function RefinedFacets({ options, pathname, searchParams }: RegionProps) {
   const raw = await searchParams;
-  const key = canonicalizeListingParams(raw, options);
+  const key = canonicalizeListingParams(raw, {
+    ...options,
+    currency: await getSelectedCurrency(),
+  });
   const facets = await getFacets(key);
 
   return (

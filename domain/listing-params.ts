@@ -84,10 +84,16 @@ export interface ListingKey {
    * Display currency.
    *
    * Part of the key so listings in different currencies are different entries,
-   * each shared by everyone using that currency. Omitted for the channel default
-   * so the shell's key is unchanged — adding `currency: 'USD'` to it would
-   * invalidate every existing entry and, worse, make the prerendered default key
-   * differ from the one a request computes.
+   * each shared by everyone using that currency.
+   *
+   * **Always populated, never inferred.** It used to be omitted whenever it
+   * matched the "default", on the theory that the prerendered shell carried no
+   * currency in its key. That was wrong in a way that only showed up once a
+   * second locale existed: an omitted `currencyCode` does not mean "the default
+   * we had in mind", it means BigCommerce answers with the *channel's* default.
+   * The channel's default is USD, so `/es/garden/` rendered `89,00 US$` — Spanish
+   * number formatting wrapped around the wrong currency — while the PDP, which
+   * always passed a currency explicitly, correctly showed euros.
    */
   currency?: string;
 }
@@ -131,16 +137,19 @@ export interface CanonicalizeOptions {
   /** Merchant-configured default sort for this category; omitted from the key. */
   defaultSort?: SortValue;
   /**
-   * The shopper's display currency, and the channel default to compare it
-   * against.
+   * The shopper's display currency.
    *
-   * Both are needed because the currency is only added to the key when it
-   * *differs* from the default — the prerendered shell is built with no currency
-   * in its key, so injecting the default would produce a key that can never
-   * match the entry that was prerendered.
+   * No `defaultCurrency` companion any more: there is nothing to compare
+   * against, because the currency now always reaches the key. Callers rendering
+   * the cached shell pass the locale's default (readable from the locale root
+   * param, so still cacheable); callers rendering a refined view pass the
+   * shopper's selection.
+   *
+   * Per-locale keys were already distinct — locale is a root param — so making
+   * the currency explicit adds no cache cardinality that the locale had not
+   * already created.
    */
   currency?: string;
-  defaultCurrency?: string;
 }
 
 export function canonicalizeListingParams(
@@ -149,8 +158,7 @@ export function canonicalizeListingParams(
 ): ListingKey {
   const key: ListingKey = { limit: DEFAULT_LIMIT };
 
-  // Only a non-default currency reaches the key. See CanonicalizeOptions.
-  if (options.currency && options.currency !== options.defaultCurrency) {
+  if (options.currency) {
     key.currency = options.currency;
   }
 
@@ -288,13 +296,26 @@ export function shouldBypassCache(key: ListingKey): boolean {
   return activeFacetCount(key) > MAX_CACHEABLE_FACETS;
 }
 
-/** The unfiltered view of the same listing — the entry most traffic shares. */
+/**
+ * The unfiltered view of the same listing — the entry most traffic shares.
+ *
+ * **Currency survives; filters do not.** That distinction is the whole point and
+ * it was missing: currency is not a refinement of *which* products to show, it is
+ * the unit the answer comes back in. Dropping it sent `currencyCode: null`, which
+ * BigCommerce answers with the channel's default — so the prerendered shell for
+ * `/es/garden/` was built in USD, rendered `89,00 US$`, and was then visibly
+ * replaced by `86,50 €` when the refined grid streamed in.
+ *
+ * Keeping it costs nothing in cache cardinality: each locale prerenders its own
+ * shell already, and a locale has exactly one default currency.
+ */
 export function defaultKey(key: ListingKey): ListingKey {
   return {
     limit: key.limit,
     ...(key.categoryId !== undefined && { categoryId: key.categoryId }),
     ...(key.brandId !== undefined && { brandId: key.brandId }),
     ...(key.term !== undefined && { term: key.term }),
+    ...(key.currency !== undefined && { currency: key.currency }),
   };
 }
 

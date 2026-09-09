@@ -1,8 +1,7 @@
 import { getRequestConfig } from 'next-intl/server';
 import { locale } from 'next/root-params';
 
-import { DEFAULT_LOCALE } from '~/lib/config/channels';
-import { messagesFor } from '~/lib/i18n/messages';
+import { messagesFor, normalizeLocale } from '~/lib/i18n/messages';
 
 /**
  * next-intl request configuration.
@@ -45,7 +44,7 @@ export default getRequestConfig(async ({ locale: override }) => {
    * Reading `params.locale` is safe. It is `params.requestLocale` that must be
    * avoided — that one is a getter which calls `headers()`.
    */
-  const active = override ?? (await locale()) ?? DEFAULT_LOCALE;
+  const active = normalizeLocale(override ?? (await locale()));
 
   /*
    * `messagesFor` merges the translated catalogue over English, so a key nobody

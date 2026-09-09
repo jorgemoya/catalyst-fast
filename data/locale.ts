@@ -2,7 +2,8 @@ import 'server-only';
 
 import { locale } from 'next/root-params';
 
-import { DEFAULT_LOCALE } from '~/lib/config/channels';
+import { normalizeLocale } from '~/lib/i18n/messages';
+
 
 /**
  * The active locale, for cached catalog reads.
@@ -30,5 +31,5 @@ import { DEFAULT_LOCALE } from '~/lib/config/channels';
 // It must NOT be cached: its whole purpose is to be read *inside* a caller's
 // cached body so the locale lands in that caller's key.
 export async function activeLocale(): Promise<string> {
-  return (await locale()) ?? DEFAULT_LOCALE;
+  return normalizeLocale(await locale());
 }

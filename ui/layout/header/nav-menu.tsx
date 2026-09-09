@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 
 import { NavigationMenu } from '@base-ui/react/navigation-menu';
-import NextLink from 'next/link';
+
+import { Link } from '~/ui/primitives/link';
 import type { ReactNode } from 'react';
 
 /**
@@ -72,7 +73,7 @@ export function NavMenuItem({
   if (!children) {
     return (
       <NavigationMenu.Item>
-        <NavigationMenu.Link className={itemClasses} render={<NextLink href={href} />}>
+        <NavigationMenu.Link className={itemClasses} render={<Link href={href} />}>
           {label}
         </NavigationMenu.Link>
       </NavigationMenu.Item>
@@ -98,7 +99,7 @@ export function NavMenuItem({
       <NavigationMenu.Content className="w-full p-6 transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out-quart) data-ending-style:opacity-0 data-starting-style:opacity-0">
         <NavigationMenu.Link
           className="mb-4 inline-block text-sm font-semibold text-primary underline-offset-4 hover:underline"
-          render={<NextLink href={href} />}
+          render={<Link href={href} />}
         >
           {t('Header.shopAllCategory', { category: label })}
         </NavigationMenu.Link>
@@ -122,7 +123,7 @@ export function NavPanelLink({
   children: ReactNode;
 }) {
   return (
-    <NavigationMenu.Link className={className} render={<NextLink href={href} />}>
+    <NavigationMenu.Link className={className} render={<Link href={href} />}>
       {children}
     </NavigationMenu.Link>
   );

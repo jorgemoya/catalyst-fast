@@ -7,8 +7,9 @@ import { locale } from 'next/root-params';
 import { getSwitchableCurrencies } from '~/data/currencies';
 import { getStoreSettings } from '~/data/settings';
 import { CONSENT_COOKIE_NAME, hasConsentFor, parseConsent } from '~/domain/consent';
+import { normalizeLocale } from '~/lib/i18n/messages';
 import { LOCALE_HEADER } from '~/proxies/locale';
-import { DEFAULT_LOCALE, channelFor, resolveCurrency } from '~/lib/config/channels';
+import { channelFor, resolveCurrency } from '~/lib/config/channels';
 
 /**
  * The shopper's chosen display currency.
@@ -73,7 +74,7 @@ export async function getSelectedCurrency(): Promise<string> {
 export async function activeLocale(): Promise<string> {
   const requestHeaders = await headers();
 
-  return requestHeaders.get(LOCALE_HEADER) ?? DEFAULT_LOCALE;
+  return normalizeLocale(requestHeaders.get(LOCALE_HEADER));
 }
 
 /**
@@ -100,9 +101,14 @@ export async function getSelectedCurrencyForAction(): Promise<string> {
  * never a cookie.
  */
 export async function getDefaultCurrency(): Promise<string> {
-  const activeLocale = (await locale()) ?? 'en';
-
-  return channelFor(activeLocale).defaultCurrency;
+  /*
+   * `normalizeLocale`, not `?? 'en'`. The root param is an empty string while the
+   * param-independent fallback shell prerenders, and `??` passes that through —
+   * `channelFor('')` then silently falls back to the default channel, so `/es/`
+   * would be built in USD rather than EUR. Same defect as the `Intl` crash, minus
+   * the crash, which is what made it survive longer.
+   */
+  return channelFor(normalizeLocale(await locale())).defaultCurrency;
 }
 
 /**

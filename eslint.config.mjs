@@ -63,6 +63,38 @@ const config = [
       ],
     },
   },
+  {
+    /**
+     * Links must carry the active locale.
+     *
+     * `next/link` renders the href verbatim, and an unprefixed href is read by
+     * the proxy as the default locale — so a Spanish shopper clicking it lands in
+     * English. That shipped: 29 of 29 internal links on `/es/` were unprefixed,
+     * and the one component still importing `next/link` directly kept four of
+     * them broken after the primitive was fixed.
+     *
+     * `~/ui/primitives/link` is the same component with `localizeHref` applied.
+     * Catalog paths arrive from BigCommerce locale-blind (`/garden/`), so this
+     * cannot be enforced at the data layer — the import boundary is the only
+     * place it holds.
+     */
+    files: ['app/**/*.tsx', 'ui/**/*.tsx'],
+    ignores: ['ui/primitives/link.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'next/link',
+              message:
+                'Use ~/ui/primitives/link, which prefixes internal hrefs with the active locale. A bare next/link sends non-default-locale shoppers back to the default locale.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

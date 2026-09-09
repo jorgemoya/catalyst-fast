@@ -6,7 +6,13 @@ import { graphql } from '~/lib/bigcommerce/graphql';
 import { kv } from '~/lib/kv';
 import { channelFor } from '~/lib/config/channels';
 
-import { LOCALE_HEADER, detectLocale, shouldStripPrefix, withLocalePrefix } from './locale';
+import {
+  LOCALE_EXEMPT_PATH,
+  LOCALE_HEADER,
+  detectLocale,
+  shouldStripPrefix,
+  withLocalePrefix,
+} from './locale';
 import { kvKey, STORE_STATUS_KEY } from '~/lib/kv/keys';
 
 import type { ProxyFactory } from './compose';
@@ -363,8 +369,6 @@ const APP_OWNED_PATH = /^\/(?:cart|checkout|search|login|register|logout|forgot-
  * These still get the locale *header* (see `localeHeaders`), which is how they
  * know which channel and currency to use.
  */
-const LOCALE_EXEMPT_PATH = /^\/checkout\/?$|^\/login\/token\//;
-
 /**
  * Adds the resolved locale to the *request* headers the app will see.
  *

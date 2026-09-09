@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_LOCALE } from '~/lib/config/channels';
 
-import { MESSAGES, hasMessagesFor, mergeOverEnglish, messagesFor } from './messages';
+import {
+  MESSAGES,
+  hasMessagesFor,
+  mergeOverEnglish,
+  messagesFor,
+  normalizeLocale,
+} from './messages';
 
 /**
  * Catalogue integrity.
@@ -167,6 +173,45 @@ describe('mergeOverEnglish', () => {
     mergeOverEnglish({ Header: { currency: 'Moneda' }, Brand: { new: 'x' } });
 
     expect(JSON.stringify(MESSAGES.en)).toBe(before);
+  });
+});
+
+/*
+ * The guard that `?? DEFAULT_LOCALE` was not.
+ *
+ * `next/root-params` returns an empty string while prerendering the
+ * param-independent fallback shell, and `??` passes `''` straight through to
+ * `Intl`, which throws `RangeError: Incorrect locale information provided`.
+ * `undefined` is harmless there and `''` is fatal, so the nullish check caught
+ * exactly the wrong case — 336 errors on a single listing page render.
+ */
+describe('normalizeLocale', () => {
+  it('rejects the empty string that `??` lets through', () => {
+    expect(normalizeLocale('')).toBe(DEFAULT_LOCALE);
+    expect(normalizeLocale('   ')).toBe(DEFAULT_LOCALE);
+  });
+
+  it('rejects null and undefined', () => {
+    expect(normalizeLocale(undefined)).toBe(DEFAULT_LOCALE);
+    expect(normalizeLocale(null)).toBe(DEFAULT_LOCALE);
+  });
+
+  it('rejects a locale we ship no catalogue for', () => {
+    expect(normalizeLocale('de')).toBe(DEFAULT_LOCALE);
+    expect(normalizeLocale('en-GB')).toBe(DEFAULT_LOCALE);
+  });
+
+  it('keeps a locale we can actually render', () => {
+    expect(normalizeLocale('es')).toBe('es');
+    expect(normalizeLocale('en')).toBe('en');
+  });
+
+  it('always returns something Intl accepts', () => {
+    for (const input of ['', '   ', undefined, null, 'de', 'es', 'nonsense']) {
+      expect(() =>
+        new Intl.NumberFormat(normalizeLocale(input), { style: 'currency', currency: 'USD' }),
+      ).not.toThrow();
+    }
   });
 });
 

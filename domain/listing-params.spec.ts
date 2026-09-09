@@ -133,6 +133,23 @@ describe('canonicalizeListingParams', () => {
 });
 
 describe('defaultKey', () => {
+  /*
+   * Currency is not a filter. Stripping it made the shell request a null
+   * `currencyCode`, which BigCommerce answers with the *channel* default — so a
+   * Spanish listing prerendered in USD and flipped to EUR once the refined grid
+   * arrived.
+   */
+  it('keeps the currency while dropping the filters', () => {
+    const key = canonicalizeListingParams(
+      { brand: ['5'], minRating: '4' },
+      { categoryId: 98, currency: 'EUR' },
+    );
+
+    expect(defaultKey(key).currency).toBe('EUR');
+    expect(defaultKey(key).brands).toBeUndefined();
+    expect(defaultKey(key).minRating).toBeUndefined();
+  });
+
   it('strips every refinement but keeps page identity', () => {
     const key = canonicalizeListingParams(
       { brand: ['1'], sort: 'price-asc', minPrice: '10', after: 'CURSOR' },

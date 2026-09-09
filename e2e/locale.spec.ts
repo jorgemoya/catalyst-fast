@@ -62,6 +62,73 @@ test.describe('locale', () => {
     expect(spanish).toMatch(/\d,\d{2}\s?€$/);
   });
 
+  /*
+   * The regression that prompted this: switch to Spanish on a PDP, click the
+   * header logo, land back in English.
+   *
+   * Every existing test here navigates to `/es/...` by URL, so none of them ever
+   * exercised an outgoing link — which is exactly where the bug lived. Clicking
+   * is the point of these two.
+   */
+  test('the header logo keeps a Spanish shopper in Spanish', async ({ page }) => {
+    await page.goto(`/es${SIMPLE_PRODUCT}`);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+
+    await page.getByRole('banner').getByRole('link').first().click();
+
+    await expect(page).toHaveURL(/\/es\/?$/);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  });
+
+  test('following catalog links from a Spanish page stays in Spanish', async ({ page }) => {
+    await page.goto('/es/');
+
+    /*
+     * Catalog paths come from BigCommerce as `/garden/` and know nothing about
+     * locale, so this is the case that cannot be fixed at the data layer.
+     */
+    const link = page.getByRole('main').getByRole('link', { name: /.+/ }).first();
+    const href = await link.getAttribute('href');
+
+    expect(href).toMatch(/^\/es\//);
+
+    await link.click();
+    await expect(page).toHaveURL(/\/es\//);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  });
+
+  /*
+   * Listing *cards* price separately from the PDP, and only the PDP was covered.
+   * The cards took their prices from `searchProducts`, whose `currencyCode` was
+   * dropped by `defaultKey` — so the Spanish shell was built in the channel's
+   * currency and rendered `89,00 US$`: Spanish number formatting wrapped around
+   * the wrong currency, then visibly replaced by euros.
+   */
+  test('listing cards price in the locale currency, not the channel default', async ({ page }) => {
+    await page.goto(`/es${CATEGORY}`);
+
+    const main = page.getByRole('main');
+
+    // es-ES formats EUR as `86,50 €` — comma decimal, symbol last.
+    await expect(main).toContainText(/\d+,\d{2}\s?€/u);
+
+    /*
+     * And crucially *no* USD anywhere. The bug rendered `89,00 US$` in the shell
+     * before euros streamed in, so asserting only on the euro would have passed
+     * against the broken build.
+     */
+    await expect(main).not.toContainText('US$');
+  });
+
+  test('English listing cards are unaffected', async ({ page }) => {
+    await page.goto(CATEGORY);
+
+    const main = page.getByRole('main');
+
+    await expect(main).toContainText(/\$\d+\.\d{2}/u);
+    await expect(main).not.toContainText('€');
+  });
+
   test('the language switcher preserves the current page', async ({ page }) => {
     await page.goto(CATEGORY);
 

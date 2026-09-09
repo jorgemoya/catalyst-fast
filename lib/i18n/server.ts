@@ -1,43 +1,70 @@
 import 'server-only';
 
-import { getFormatter, getTranslations } from 'next-intl/server';
+import { createTranslator } from 'next-intl';
 
-import { activeLocale } from '~/lib/currency';
+import { activeLocale as localeFromRootParam } from '~/data/locale';
+import { activeLocale as localeFromHeader } from '~/lib/currency';
+
+import {
+  formatCurrencyIn,
+  formatDateIn,
+  formatDateOnlyIn,
+  messagesFor,
+} from './messages';
 
 /**
  * Locale-aware helpers for Server Components.
  *
- * **Thin wrappers over next-intl's own server helpers**, not a reimplementation.
- * An earlier version hand-rolled a translator because `getRequestConfig` looked
- * request-scoped, which would have made every page dynamic. That reasoning was
- * wrong: `requestLocale` is a *getter*, and a config that reads the `locale`
- * root param instead never touches `headers()`. Verified — a `use cache`
- * function calling `getTranslations()` prerenders per locale. See
- * `i18n/request.ts`.
+ * **These take the locale explicitly. They must not use `next-intl/server`.**
  *
- * The wrappers survive that correction for one reason: they are the seam. Every
- * Server Component already says `const t = await getT()`, so swapping the
- * implementation underneath cost nothing, and a future change to how locale is
- * resolved will cost nothing either.
+ * An earlier version wrapped `getTranslations()` and `getFormatter()`, on the
+ * reasoning that a request config reading root params never touches `headers()`
+ * and is therefore safe inside `use cache`. The config part of that is true —
+ * `i18n/request.ts` resolves correctly. What is not true is that the helpers can
+ * *reach* it from a cached scope.
  *
- * `getT()` returns the same `t('Namespace.key')` callable as before.
+ * Measured: rendering one listing page produced **152 `FORMATTING_ERROR:
+ * Incorrect locale information provided (undefined)`** and 16 `INVALID_MESSAGE`,
+ * while `getRequestConfig` ran only 5 times. Inside a `'use cache'` body
+ * next-intl cannot see the request config, so it falls back to an undefined
+ * locale — and does so **silently**, which is why this survived a green test
+ * suite.
+ *
+ * It survived because the damage is invisible until a message needs the locale:
+ *
+ *   t('Header.cart')                      → plain lookup, no locale, fine
+ *   t('Header.shopAllCategory', {category}) → ICU formatter, INVALID_MESSAGE
+ *   format.number(…, {currency})          → Intl.NumberFormat, FORMATTING_ERROR
+ *
+ * So the chrome rendered in Spanish and only parameterized strings and money
+ * broke, on cached pages only.
+ *
+ * The fix is to go back to what this module did originally: read the locale from
+ * the **root param** — which genuinely is legal inside `use cache`, because it is
+ * part of the route rather than the request — and build a translator and
+ * formatters from it directly. `createTranslator` is next-intl's pure core; it
+ * takes a locale and messages and touches no request state.
  */
 
+async function translatorFor(locale: string) {
+  return createTranslator({ locale, messages: messagesFor(locale) });
+}
+
 export async function getT() {
-  return getTranslations();
+  return translatorFor(await localeFromRootParam());
 }
 
 /**
  * Translator for **Server Actions and Route Handlers**.
  *
- * `next/root-params` is unavailable in both, so `i18n/request.ts` cannot resolve
- * the locale on its own there. Passing an explicit `locale` takes next-intl's
- * `localeOverride` path, which short-circuits the `requestLocale` getter — so
- * this stays free of `headers()` inside next-intl, even though we read one
- * header ourselves to learn the locale the proxy resolved.
+ * `next/root-params` is unavailable in both — Turbopack rejects the import
+ * outright — so the locale comes from the header the proxy sets instead. Reading
+ * a header is illegal inside `use cache`, which is exactly why this is a separate
+ * export rather than a fallback inside `getT`: the distinction has to be visible
+ * at the call site.
  */
 export async function getTForAction() {
-  return getTranslations({ locale: await activeLocale() });
+  return translatorFor(await localeFromHeader());
 }
 
 /**
@@ -48,21 +75,20 @@ export async function getTForAction() {
  * formatter looks fine to whoever wrote it and wrong to everyone who speaks the
  * language.
  *
- * These return plain callables with the same signatures the previous
- * hand-rolled helpers had, so call sites are unchanged.
+ * These delegate to the memoized `Intl` formatters in `./messages`, which take
+ * the locale as an argument and so work identically inside and outside a cached
+ * scope.
  */
 export async function getFormatCurrency() {
-  const format = await getFormatter();
+  const locale = await localeFromRootParam();
 
-  return (amount: number, currencyCode: string) =>
-    format.number(amount, { style: 'currency', currency: currencyCode });
+  return (amount: number, currencyCode: string) => formatCurrencyIn(locale, amount, currencyCode);
 }
 
 export async function getFormatDate() {
-  const format = await getFormatter();
+  const locale = await localeFromRootParam();
 
-  return (date: Date | string) =>
-    format.dateTime(typeof date === 'string' ? new Date(date) : date, { dateStyle: 'medium' });
+  return (date: Date | string) => formatDateIn(locale, date);
 }
 
 /**
@@ -74,11 +100,7 @@ export async function getFormatDate() {
  * instead silently shifts it a day for every viewer west of UTC.
  */
 export async function getFormatDateOnly() {
-  const format = await getFormatter();
+  const locale = await localeFromRootParam();
 
-  return (date: Date | string) =>
-    format.dateTime(typeof date === 'string' ? new Date(date) : date, {
-      dateStyle: 'medium',
-      timeZone: 'UTC',
-    });
+  return (date: Date | string) => formatDateOnlyIn(locale, date);
 }

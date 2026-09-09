@@ -40,6 +40,31 @@ const isKnownLocale = (value: string): value is Locale => Object.hasOwn(MESSAGES
 export const hasMessagesFor = (value: string): boolean => isKnownLocale(value);
 
 /**
+ * Narrows whatever a locale source returned to a locale we can actually render.
+ *
+ * **Exists because `?? DEFAULT_LOCALE` is not enough**, and the gap it left was
+ * expensive. `next/root-params` yields an **empty string** — not `undefined` —
+ * while prerendering the param-independent fallback shell, and `??` passes `''`
+ * straight through. `Intl.NumberFormat('')` then throws `Incorrect locale
+ * information provided`, which is a `RangeError` from the platform, while
+ * `Intl.NumberFormat(undefined)` is perfectly legal. So the nullish check caught
+ * the harmless case and missed the fatal one.
+ *
+ * Measured: one listing page render produced 336 of these. They were invisible
+ * in tests because they only surface where a locale is genuinely required —
+ * money formatting and ICU-parameterized messages — so plain lookups kept
+ * working and the pages still looked right.
+ *
+ * Every locale source funnels through here: the root param, the proxy header,
+ * and next-intl's request config.
+ */
+export function normalizeLocale(value: string | undefined | null): string {
+  const trimmed = value?.trim();
+
+  return trimmed && isKnownLocale(trimmed) ? trimmed : DEFAULT_LOCALE;
+}
+
+/**
  * Deep-merges a translated catalogue over the English one.
  *
  * **Whole-catalogue fallback and per-key fallback are different problems**, and
