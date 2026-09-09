@@ -71,3 +71,27 @@
 [data-price-slot]:has([data-price-overlay]) [data-price-base] {
   display: none;
 }
+
+/*
+ * Quantity input: suppress the browser's native number spinners.
+ *
+ * `<input type="number">` renders its own up/down arrows, which are redundant
+ * next to the stepper's own −/+ buttons. The reason to remove them is not taste:
+ * Chrome reserves the `::-webkit-inner-spin-button` box on the right edge
+ * (measured `display: block` on a 56px input) even while it is unpainted, so
+ * `text-center` centres the number within a box that is 
+ * narrower on the right than it looks. The digit sat visibly left of the
+ * midpoint between the two buttons.
+ *
+ * `appearance: textfield` handles Firefox; the pseudo-elements handle
+ * Chrome/Safari. Both are needed.
+ */
+.quantity-input {
+  appearance: textfield;
+}
+
+.quantity-input::-webkit-inner-spin-button,
+.quantity-input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}

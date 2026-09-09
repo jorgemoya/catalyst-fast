@@ -186,3 +186,45 @@ test.describe('out of stock', () => {
     await expect(cta).toHaveText('Out of stock');
   });
 });
+
+/**
+ * The quantity stepper's number must sit centred between − and +.
+ *
+ * `<input type="number">` renders native spinner arrows, and Chrome reserves
+ * their box on the right edge even unpainted — so `text-center` centred the digit
+ * in a box narrower on the right than it appeared, leaving it visibly off.
+ */
+test('quantity input is centred between its buttons', async ({ page }) => {
+  await page.goto(SIMPLE_PRODUCT);
+
+  const offset = await page.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
+    const wrap = input?.parentElement;
+    const buttons = wrap?.querySelectorAll('button');
+
+    if (!input || !buttons || buttons.length < 2) {
+      return null;
+    }
+
+    const midpoint =
+      (buttons[0]!.getBoundingClientRect().right + buttons[1]!.getBoundingClientRect().left) / 2;
+    const box = input.getBoundingClientRect();
+    const style = getComputedStyle(input);
+    const contentCentre =
+      box.left +
+      parseFloat(style.borderLeftWidth) +
+      parseFloat(style.paddingLeft) +
+      (box.width -
+        parseFloat(style.borderLeftWidth) -
+        parseFloat(style.borderRightWidth) -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)) /
+        2;
+
+    return contentCentre - midpoint;
+  });
+
+  expect(offset).not.toBeNull();
+  // Sub-pixel tolerance only. The bug was ~8px.
+  expect(Math.abs(offset ?? 99)).toBeLessThan(1);
+});

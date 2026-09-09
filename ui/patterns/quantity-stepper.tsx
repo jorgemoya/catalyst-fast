@@ -14,6 +14,11 @@ import { cn } from '~/lib/cn';
  * `maxPurchaseQuantity`. They are enforced here and again by the zod schema on
  * the server, because the buttons are only advisory — the number input accepts
  * typing, and nothing stops a crafted POST.
+ *
+ * `.quantity-input` suppresses the browser's own spinner arrows. They are
+ * redundant beside our −/+ buttons, and Chrome reserves their box on the right
+ * even when they are not painted — which is what pulled the centred number
+ * visibly off-centre. See `styles/globals.css`.
  */
 
 interface Props {
@@ -57,7 +62,7 @@ export function QuantityStepper({
         </StepperButton>
 
         <input
-          className="w-14 border-x border-border bg-background text-center text-sm tabular-nums outline-none focus-visible:bg-accent"
+          className="quantity-input w-14 border-x border-border bg-background text-center text-sm tabular-nums outline-none focus-visible:bg-accent"
           disabled={disabled}
           id={name}
           inputMode="numeric"

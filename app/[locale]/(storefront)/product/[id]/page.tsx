@@ -1,7 +1,7 @@
 import { getT } from '~/lib/i18n/server';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { Suspense } from 'react';
+import { type ReactNode, Suspense } from 'react';
 
 import { getInventorySettings, getProductAvailability } from '~/data/inventory';
 import { getProductPrice } from '~/data/pricing';
@@ -120,25 +120,27 @@ async function ProductDetail({ params }: Props) {
             price and stock rather than a placeholder.
           */}
           {/*
-            One price slot holding both the prerendered price and any overlay.
-            The wrapper exists so CSS can hide the base price when an overlay
-            lands — see `data-price-slot` in styles/globals.css.
-          */}
-          <div data-price-slot>
-            <Suspense fallback={<PurchaseSkeleton />}>
-              <Purchase product={product} />
-            </Suspense>
+            The overlay is passed *into* the form so it lands in the price
+            position. It used to be a sibling of the whole form, which put the
+            converted price below "Add to cart" — and, worse, after the CTA in
+            reading order. The `data-price-slot` wrapper now lives beside the
+            base price inside the form.
 
-            {/*
-              Renders null unless this shopper's price genuinely differs — a
-              customer-group price list, or a switched display currency. Guests
-              on the default currency get nothing here and keep a fully static
-              page. Its own boundary so it can never delay the CTA.
-            */}
-            <Suspense fallback={null}>
-              <PriceOverlay productId={id} />
-            </Suspense>
-          </div>
+            Renders null unless this shopper's price genuinely differs — a
+            customer-group price list, or a switched display currency. Guests on
+            the default currency get nothing here and keep a fully static page.
+            Its own boundary so it can never delay the CTA.
+          */}
+          <Suspense fallback={<PurchaseSkeleton />}>
+            <Purchase
+              priceOverlay={
+                <Suspense fallback={null}>
+                  <PriceOverlay productId={id} />
+                </Suspense>
+              }
+              product={product}
+            />
+          </Suspense>
         </div>
       </div>
 
@@ -251,7 +253,13 @@ async function ProductRating({
  * Resolves the default variant on the server, so the shell carries real price and
  * stock. The selector then owns changes client-side.
  */
-async function Purchase({ product }: { product: NonNullable<Awaited<ReturnType<typeof getProduct>>> }) {
+async function Purchase({
+  product,
+  priceOverlay,
+}: {
+  product: NonNullable<Awaited<ReturnType<typeof getProduct>>>;
+  priceOverlay?: ReactNode;
+}) {
   const [price, availability, inventory] = await Promise.all([
     getProductPrice(product.id, await getDefaultCurrency()),
     getProductAvailability(product.id),
@@ -262,6 +270,7 @@ async function Purchase({ product }: { product: NonNullable<Awaited<ReturnType<t
     <PurchaseForm
       fields={product.options}
       initial={{ price, availability, inventory }}
+      priceOverlay={priceOverlay}
       productId={product.id}
       quantityLimits={{ min: product.minPurchaseQuantity, max: product.maxPurchaseQuantity }}
     />

@@ -143,6 +143,53 @@ test.describe('currency', () => {
     expect(cookie?.expires).toBe(-1);
   });
 
+  /*
+   * The overlay must land in the price slot, not at the end of the form. It was
+   * a sibling of the whole form, so the converted price rendered *below* "Add to
+   * cart" — and, less visibly but worse, after the CTA in DOM order, so a screen
+   * reader announced the options, the quantity and the button before the price.
+   *
+   * Both assertions matter: position alone would pass if the fix were flexbox
+   * `order`, which does not change reading order.
+   */
+  test('the converted price replaces the original in place, above the CTA', async ({ page }) => {
+    await page.goto(SIMPLE_PRODUCT);
+
+    const switcher = page.locator(CURRENCY_SELECT);
+
+    if ((await switcher.count()) === 0) {
+      test.skip(true, 'store offers a single currency');
+    }
+
+    await switcher.selectOption('EUR');
+
+    const overlay = page.getByTestId('currency-price');
+    const cta = page.getByTestId('add-to-cart');
+
+    await expect(overlay).toBeVisible();
+
+    const overlayBox = await overlay.boundingBox();
+    const ctaBox = await cta.boundingBox();
+
+    expect(overlayBox?.y ?? 0).toBeLessThan(ctaBox?.y ?? 0);
+
+    // DOM order, which is what assistive technology follows.
+    const overlayPrecedesCta = await page.evaluate(() => {
+      const price = document.querySelector('[data-testid="currency-price"]');
+      const button = document.querySelector('[data-testid="add-to-cart"]');
+
+      if (!price || !button) {
+        return false;
+      }
+
+      return Boolean(
+        price.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    expect(overlayPrecedesCta).toBe(true);
+  });
+
   test('a consenting shopper keeps the currency across visits', async ({ page, context }) => {
     await page.goto(SIMPLE_PRODUCT);
 

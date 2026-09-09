@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
+import { type ReactNode, useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 
 import { addToCart } from '~/app/[locale]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
@@ -56,13 +56,22 @@ interface Props {
   productId: number;
   fields: ProductOptionField[];
   quantityLimits: { min: number; max: number | null };
+  /**
+   * The streamed price overlay, rendered **in the price position**.
+   *
+   * A slot rather than a sibling of the form, because DOM order is the reading
+   * order: with the overlay after the form, a screen reader announced the
+   * options, the quantity and "Add to cart" before ever reaching the price.
+   * Flexbox `order` would have fixed the visual bug and left that one in place.
+   */
+  priceOverlay?: ReactNode;
   /** Server-rendered default variant state, shown until the shopper changes something. */
   initial: VariantSnapshot;
 }
 
 type Selection = OptionSelection;
 
-export function PurchaseForm({ productId, fields, quantityLimits, initial }: Props) {
+export function PurchaseForm({ productId, fields, quantityLimits, initial, priceOverlay }: Props) {
   const t = useTranslations();
 
   const variantFields = useMemo(() => fields.filter((field) => field.variantDefining), [fields]);
@@ -187,7 +196,15 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial }: Pro
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
-      <VariantPrice price={snapshot.price} stale={isResolving} />
+      {/*
+        Both prices live here so the CSS `:has()` rule can hide the base one the
+        moment an overlay lands, and so the overlay occupies the slot the base
+        price vacated rather than appearing at the end of the form.
+      */}
+      <div data-price-slot>
+        <VariantPrice price={snapshot.price} stale={isResolving} />
+        {priceOverlay}
+      </div>
 
       {fields.map((field) => (
         <OptionField

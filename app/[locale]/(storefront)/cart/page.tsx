@@ -1,5 +1,6 @@
 import { getT } from '~/lib/i18n/server';
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
 import { Suspense } from 'react';
 
 import { getCart } from '~/data/cart';
@@ -174,6 +175,24 @@ async function WalletButtonsRegion({
   cartId: string;
   summary: { grandTotal: { value: number; currencyCode: string } | null };
 }) {
+  /*
+   * **Must not run during prerender.** The wallet query is uncached by design —
+   * its payload is single-use payment session material — so when this region was
+   * prerendered the fetch was still in flight as the prerender completed, and
+   * Next rejected it:
+   *
+   *   During prerendering, fetch() rejects when the prerender is complete.
+   *   digest: 'HANGING_PROMISE_REJECTION'
+   *
+   * Harmless to the shopper (the catch below returns null and the ordinary
+   * checkout button is untouched) but it logged on every cart prerender, which is
+   * how real errors get lost. `connection()` says "this needs a request",
+   * excluding the region from the prerender rather than starting work that cannot
+   * finish. Same reason `/admin` uses it, and preferable to
+   * `export const dynamic`, which is incompatible with `cacheComponents`.
+   */
+  await connection();
+
   const total = summary.grandTotal;
 
   if (!total) {
