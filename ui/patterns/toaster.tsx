@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { ServerToast } from '~/lib/server-toast';
+import { type ServerToast, TOAST_COOKIE_NAME } from '~/domain/toast';
 import { cn } from '~/lib/cn';
 
 /**
@@ -19,6 +19,16 @@ export function Toaster({ toast }: { toast: ServerToast | null }) {
     if (!toast) {
       return;
     }
+
+    /*
+     * Clearing happens here because it cannot happen on the server: reading and
+     * deleting during render throws `Cookies can only be modified in a Server
+     * Action or Route Handler`, and the surrounding Suspense boundary swallowed
+     * it — the toast silently never appeared. Expiring it here is what makes the
+     * message one-shot; without it the same toast fires on every navigation
+     * until `maxAge` runs out.
+     */
+    document.cookie = `${TOAST_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
 
     const timer = setTimeout(() => setVisible(false), 5000);
 
@@ -37,6 +47,9 @@ export function Toaster({ toast }: { toast: ServerToast | null }) {
           ? 'border-danger bg-background text-danger'
           : 'border-border bg-background text-foreground',
       )}
+      // Next's route announcer is also `role="alert"`, so tests need something
+      // that identifies this element specifically.
+      data-testid="server-toast"
       // `alert` for errors so a screen reader interrupts; `status` otherwise, so
       // a success message is announced without cutting off what is being read.
       role={toast.variant === 'error' ? 'alert' : 'status'}

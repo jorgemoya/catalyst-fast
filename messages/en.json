@@ -167,7 +167,8 @@
     "shippingOptions": "Available shipping",
     "shippingNone": "No shipping options are available for that address.",
     "shippingEstimateFailed": "We could not estimate shipping. Please try again.",
-    "shippingCountryRequired": "Choose a country."
+    "shippingCountryRequired": "Choose a country.",
+    "checkoutFailed": "We could not start checkout. Your cart is unchanged — please try again."
   },
   "Home": {
     "heroTitle": "Everything you need, nothing you don’t.",

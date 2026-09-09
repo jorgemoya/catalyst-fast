@@ -244,3 +244,40 @@ test.describe('guest journey', () => {
     await expect(page.getByTestId('cart-items')).toBeVisible();
   });
 });
+
+/**
+ * Server toasts.
+ *
+ * The whole mechanism was broken and silent: `getServerToast` deleted the cookie
+ * during render, which Next forbids, and the `<Suspense fallback={null}>` around
+ * `ToasterGate` swallowed the throw. No toast ever appeared, and nothing failed.
+ * These two assertions are what would have caught it — that it shows, and that it
+ * shows only once.
+ */
+test.describe('server toast', () => {
+  const toast = (message: string) => ({
+    name: 'cf.toast',
+    value: encodeURIComponent(JSON.stringify({ variant: 'error', message })),
+    domain: '127.0.0.1',
+    path: '/',
+  });
+
+  test('a queued toast is shown on the next page', async ({ page, context }) => {
+    await context.addCookies([toast('Checkout could not start')]);
+    await page.goto('/cart/');
+
+    // Not `getByRole('alert')`: Next's route announcer carries that role too.
+    await expect(page.getByTestId('server-toast')).toContainText('Checkout could not start');
+  });
+
+  test('and is cleared, so it does not follow the shopper around', async ({ page, context }) => {
+    await context.addCookies([toast('Checkout could not start')]);
+    await page.goto('/cart/');
+    await expect(page.getByTestId('server-toast')).toBeVisible();
+
+    // Clearing happens in the browser — the server may not mutate cookies during
+    // render — so the cookie must be gone by the time the next page loads.
+    await page.goto('/cart/');
+    await expect(page.getByTestId('server-toast')).toHaveCount(0);
+  });
+});

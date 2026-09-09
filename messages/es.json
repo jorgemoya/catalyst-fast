@@ -167,7 +167,8 @@
     "shippingOptions": "Envíos disponibles",
     "shippingNone": "No hay opciones de envío disponibles para esa dirección.",
     "shippingEstimateFailed": "No hemos podido calcular el envío. Inténtalo de nuevo.",
-    "shippingCountryRequired": "Elige un país."
+    "shippingCountryRequired": "Elige un país.",
+    "checkoutFailed": "No hemos podido iniciar el pago. Tu carrito no ha cambiado; inténtalo de nuevo."
   },
   "Home": {
     "heroTitle": "Todo lo que necesitas, nada que no.",
