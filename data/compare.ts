@@ -6,8 +6,11 @@ import { type Price, toPrice } from '~/domain/price';
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { PricingFragment } from '~/lib/bigcommerce/fragments/pricing';
+import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 
 /**
  * Product comparison.
@@ -116,6 +119,7 @@ export const MAX_COMPARE = 10;
 export async function getCompareProducts(
   entityIds: readonly number[],
   taxDisplay: 'INC' | 'EX' | 'BOTH' | null,
+  currency: string,
 ): Promise<CompareProduct[]> {
   'use cache: remote';
   cacheLife('listing');
@@ -130,7 +134,8 @@ export async function getCompareProducts(
 
   const data = await query({
     document: CompareProductsQuery,
-    variables: { entityIds: [...ids], currencyCode: null },
+    variables: { entityIds: [...ids], currencyCode: toCurrencyCode(currency) },
+    locale: await activeLocale(),
   });
 
   const products = removeEdgesAndNodes(data.site.products);

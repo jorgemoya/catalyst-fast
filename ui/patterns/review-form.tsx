@@ -1,12 +1,13 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { useForm } from '@conform-to/react';
-import { useActionState, useState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 
-import { submitReview } from '~/app/(storefront)/product/[id]/_actions/submit-review';
+import { submitReview } from '~/app/[locale]/(storefront)/product/[id]/_actions/submit-review';
 import { MAX_RATING, MIN_RATING, reviewSchema } from '~/domain/review';
-import { t } from '~/lib/i18n/messages';
 
 import { RecaptchaField } from './recaptcha-field';
 
@@ -23,25 +24,37 @@ import { RecaptchaField } from './recaptcha-field';
  * validates immediately with it.
  */
 
-const messages = {
-  authorRequired: t('Product.reviewAuthorRequired'),
-  emailRequired: t('Product.reviewEmailRequired'),
-  emailInvalid: t('Product.reviewEmailInvalid'),
-  titleRequired: t('Product.reviewTitleRequired'),
-  titleTooLong: t('Product.reviewTitleTooLong'),
-  textRequired: t('Product.reviewTextRequired'),
-  textTooLong: t('Product.reviewTextTooLong'),
-  ratingRequired: t('Product.reviewRatingRequired'),
-};
-
-const schema = reviewSchema(messages);
-
 const RATINGS = Array.from(
   { length: MAX_RATING - MIN_RATING + 1 },
   (_, index) => MIN_RATING + index,
 );
 
 export function ReviewForm({ productId }: { productId: number }) {
+  const t = useTranslations();
+
+  /*
+   * Built per render, not once at module scope.
+   *
+   * The schema carries **translated** validation messages, so a module-level
+   * `reviewSchema(messages)` would freeze whichever locale happened to import
+   * the module first and show English errors to a Spanish shopper. `useMemo`
+   * keeps the per-render cost to a locale change rather than every keystroke.
+   */
+  const schema = useMemo(
+    () =>
+      reviewSchema({
+        authorRequired: t('Product.reviewAuthorRequired'),
+        emailRequired: t('Product.reviewEmailRequired'),
+        emailInvalid: t('Product.reviewEmailInvalid'),
+        titleRequired: t('Product.reviewTitleRequired'),
+        titleTooLong: t('Product.reviewTitleTooLong'),
+        textRequired: t('Product.reviewTextRequired'),
+        textTooLong: t('Product.reviewTextTooLong'),
+        ratingRequired: t('Product.reviewRatingRequired'),
+      }),
+    [t],
+  );
+
   const [open, setOpen] = useState(false);
   const [result, action, pending] = useActionState(submitReview.bind(null, productId), null);
 

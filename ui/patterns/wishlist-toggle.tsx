@@ -1,8 +1,8 @@
+import { getT } from '~/lib/i18n/server';
 import { cacheLife } from 'next/cache';
 
 import { getSession } from '~/data/customer/session';
 import { type Wishlist, getWishlists } from '~/data/customer/wishlist';
-import { t } from '~/lib/i18n/messages';
 import { HeartIcon } from '~/ui/primitives/heart-icon';
 import { Link } from '~/ui/primitives/link';
 
@@ -69,6 +69,8 @@ async function getWishlistState(): Promise<ToggleState> {
 }
 
 export async function WishlistToggle({ productId, path }: { productId: number; path: string }) {
+  const t = await getT();
+
   const state = await getWishlistState();
 
   // Per-product derivation is plain synchronous work over the cached list, so it

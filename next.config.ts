@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
 import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 import { cacheProfiles } from './lib/cache/profiles';
 import { buildConfig } from './lib/config';
@@ -80,4 +81,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/*
+ * Wires `i18n/request.ts` so next-intl's server helpers can resolve their
+ * configuration. Without the plugin, `getTranslations()` throws "Couldn't find
+ * next-intl config file" even when the file exists — the plugin is what aliases
+ * the `next-intl/config` module to it.
+ */
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
+
+export default withNextIntl(nextConfig);

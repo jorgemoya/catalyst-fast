@@ -1,71 +1,193 @@
-import { createTranslator } from 'next-intl';
+import en from '~/messages/en.json';
+import es from '~/messages/es.json';
 
-import messages from '~/messages/en.json';
+import { DEFAULT_LOCALE } from '~/lib/config/channels';
 
 /**
- * Static translator. Copy lives in `messages/en.json` from day one so nothing is
- * hardcoded into JSX, but there is no locale routing, no request-scoped locale,
- * and no `[locale]` segment in v1.
+ * Locale-aware translation, without giving up `use cache`.
  *
- * This distinction is what makes the whole caching design work. `next-intl`'s
- * server helpers (`getTranslations`, `getFormatter`, `getLocale`) are
- * request-scoped and THROW inside a `'use cache'` body — so using them in `data/`
- * or in any cached component would either fail the build or force the subtree
- * dynamic. `createTranslator` is a pure function of messages, so it is safe
- * everywhere: cached components, client components, and the static shell alike.
+ * The constraint that shaped this: `next-intl`'s server helpers
+ * (`getTranslations`, `getLocale`) are **request**-scoped and throw inside a
+ * `'use cache'` body. Locale, however, is a **root param** — part of the route,
+ * not the request — so `locale()` from `next/root-params` *is* legal there. This
+ * module therefore never touches request state; it takes a locale and returns a
+ * pure translator built from static message catalogues.
  *
- * Phase 8 reintroduces locales as a **root param**, which is readable inside
- * `use cache` (unlike cookies or `getLocale()`). At that point this module takes
- * a locale argument and everything downstream keeps working — which is precisely
- * why the seam is here rather than at every call site.
+ * Two entry points, same `t('Namespace.key')` signature so call sites are
+ * unchanged:
+ *
+ *   Server Components   `const t = await getT()`         (safe inside use cache)
+ *   Client Components   `const t = useTranslations()`    (from next-intl)
+ *
+ * Client components read through `NextIntlClientProvider`, mounted in the root
+ * layout with the active locale's catalogue — see `app/[locale]/layout.tsx`.
  */
-export const LOCALE = 'en';
 
-export const t = createTranslator({ locale: LOCALE, messages });
+export const MESSAGES = { en, es } as const;
+
+export type Locale = keyof typeof MESSAGES;
+
+export type Messages = (typeof MESSAGES)[typeof DEFAULT_LOCALE];
+
+const isKnownLocale = (value: string): value is Locale => Object.hasOwn(MESSAGES, value);
 
 /**
- * Intl formatters. Bound to the fixed locale for now, and constructed once —
- * `Intl.NumberFormat` construction is expensive enough to matter when formatting
- * a price per product card across a 50-item grid.
+ * Whether this repo can render copy in a locale.
+ *
+ * `data/locales.ts` intersects BigCommerce's configured locales with this, so a
+ * language the merchant enables is only routed once someone adds its catalogue.
+ */
+export const hasMessagesFor = (value: string): boolean => isKnownLocale(value);
+
+/**
+ * Deep-merges a translated catalogue over the English one.
+ *
+ * **Whole-catalogue fallback and per-key fallback are different problems**, and
+ * only the first was handled before. An unknown *locale* fell back to English;
+ * a known locale with a *missing key* did not — next-intl reports
+ * `MISSING_MESSAGE` and renders the key path, so a shopper on `/es/` read the
+ * literal text `Header.language` in the header. Measured against next-intl 4.14,
+ * not assumed: it does not consult another locale on its own.
+ *
+ * **Merging rather than `getMessageFallback`**, which was the first attempt and
+ * was wrong. That option takes a function, and functions do not cross the RSC
+ * boundary — `NextIntlClientProvider` inherits `locale`, `messages` and
+ * `timeZone` from `i18n/request.ts` but cannot inherit a callback. The result
+ * was a fallback that worked in Server Components and silently did nothing in
+ * Client Components, which is the worst of both: verified by deleting a key and
+ * watching `/es/` render `aria-label="Header.language"` on the language
+ * switcher.
+ *
+ * Merging has none of that asymmetry — it is just data, so server and client see
+ * the same catalogue — and it costs nothing: the merged object has exactly the
+ * key set of `en.json`, which is already the payload for English shoppers.
+ *
+ * `messages.spec.ts` keeps the catalogues in step, so this stays a safety net
+ * rather than a licence to skip translations. Exported for that spec: the merge
+ * only has observable behaviour when a key is missing, which parity forbids, so
+ * it has to be exercised against a deliberately sparse catalogue.
+ */
+export function mergeOverEnglish(translated: Catalogue): Catalogue {
+  const merge = (base: Catalogue, override: Catalogue): Catalogue => {
+    const result: Catalogue = { ...base };
+
+    for (const [key, value] of Object.entries(override)) {
+      const existing = result[key];
+
+      result[key] =
+        isCatalogue(value) && isCatalogue(existing) ? merge(existing, value) : (value as Catalogue);
+    }
+
+    return result;
+  };
+
+  return merge(MESSAGES[DEFAULT_LOCALE] as unknown as Catalogue, translated);
+}
+
+type Catalogue = Record<string, unknown>;
+
+const isCatalogue = (value: unknown): value is Catalogue =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/*
+ * Memoized because `i18n/request.ts` calls this on every config resolution, and
+ * the result is immutable — there is no reason to walk both catalogues twice.
+ */
+const merged = new Map<Locale, Messages>();
+
+export function messagesFor(locale: string): Messages {
+  if (!isKnownLocale(locale) || locale === DEFAULT_LOCALE) {
+    return MESSAGES[DEFAULT_LOCALE] as Messages;
+  }
+
+  let catalogue = merged.get(locale);
+
+  if (!catalogue) {
+    catalogue = mergeOverEnglish(MESSAGES[locale] as unknown as Catalogue) as unknown as Messages;
+    merged.set(locale, catalogue);
+  }
+
+  return catalogue;
+}
+
+/**
+ * Number and date formatters, per locale.
+ *
+ * Locale changes how money reads, not just which words surround it: `$1,234.50`
+ * in `en` is `1234,50 US$` in `es`. Formatting Spanish copy with an English
+ * formatter is the kind of thing that looks fine to whoever built it and wrong
+ * to everyone who speaks the language.
+ *
+ * Cached by `locale:currency` because `Intl.NumberFormat` construction is
+ * expensive enough to matter across a 50-card grid.
  */
 const currencyFormatters = new Map<string, Intl.NumberFormat>();
 
-export function formatCurrency(amount: number, currencyCode: string): string {
-  let formatter = currencyFormatters.get(currencyCode);
+export function formatCurrencyIn(locale: string, amount: number, currencyCode: string): string {
+  const key = `${locale}:${currencyCode}`;
+
+  let formatter = currencyFormatters.get(key);
 
   if (!formatter) {
-    formatter = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: currencyCode });
-    currencyFormatters.set(currencyCode, formatter);
+    formatter = new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode });
+    currencyFormatters.set(key, formatter);
   }
 
   return formatter.format(amount);
 }
 
-const dateFormatter = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'medium' });
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormatter(locale: string, utc: boolean): Intl.DateTimeFormat {
+  const key = `${locale}:${utc ? 'utc' : 'local'}`;
+
+  let formatter = dateFormatters.get(key);
+
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      dateStyle: 'medium',
+      ...(utc && { timeZone: 'UTC' }),
+    });
+    dateFormatters.set(key, formatter);
+  }
+
+  return formatter;
+}
 
 /**
  * For a real *instant* — a publish time, an order date. Rendered in the viewer's
  * timezone, which is what they want for a moment in time.
  */
-export const formatDate = (date: Date | string): string =>
-  dateFormatter.format(typeof date === 'string' ? new Date(date) : date);
-
-const dateOnlyFormatter = new Intl.DateTimeFormat(LOCALE, {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-});
+export const formatDateIn = (locale: string, date: Date | string): string =>
+  dateFormatter(locale, false).format(typeof date === 'string' ? new Date(date) : date);
 
 /**
  * For a *calendar date* the shopper picked — a delivery date, an engraving date.
  *
  * These have no time and no timezone: "December 24th" means that day wherever
  * you are. `domain/cart-line.ts` anchors them at UTC midnight on submission, so
- * they must be read back in UTC too. Formatting one with `formatDate` instead
- * silently shifts it a day for every viewer west of UTC — observed live: a
- * shopper picked 2026-12-24 and the cart line said "Dec 23, 2026" in
- * America/Chicago.
- *
- * The distinction is the whole reason there are two functions: an instant and a
- * calendar date look identical in the type system and behave differently.
+ * they must be read back in UTC too. Formatting one with `formatDateIn` instead
+ * silently shifts it a day for every viewer west of UTC.
  */
-export const formatDateOnly = (iso: string): string => dateOnlyFormatter.format(new Date(iso));
+export const formatDateOnlyIn = (locale: string, date: Date | string): string =>
+  dateFormatter(locale, true).format(typeof date === 'string' ? new Date(date) : date);
+
+/*
+ * Default-locale conveniences.
+ *
+ * These exist because a handful of call sites genuinely cannot reach a locale:
+ * pure modules under `domain/`, and code paths outside the `[locale]` segment.
+ * Everywhere else should use the locale-aware forms — a call to one of these in
+ * a component renders English to a Spanish shopper, silently.
+ *
+ * There is deliberately no default-locale `t` any more: translation goes through
+ * next-intl (`getT()` on the server, `useTranslations()` on the client), so a
+ * default-locale translator would only ever be a way to get that wrong.
+ */
+export const formatCurrency = (amount: number, currencyCode: string): string =>
+  formatCurrencyIn(DEFAULT_LOCALE, amount, currencyCode);
+
+export const formatDate = (date: Date | string): string => formatDateIn(DEFAULT_LOCALE, date);
+
+export const formatDateOnly = (date: Date | string): string =>
+  formatDateOnlyIn(DEFAULT_LOCALE, date);

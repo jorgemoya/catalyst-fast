@@ -3,6 +3,7 @@ import { cacheLife, cacheTag } from 'next/cache';
 import { type Price, toPrice } from '~/domain/price';
 import { query } from '~/lib/bigcommerce';
 import { PricingFragment } from '~/lib/bigcommerce/fragments/pricing';
+import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
 
@@ -52,8 +53,17 @@ export interface OptionValueId {
   valueEntityId: number;
 }
 
+/**
+ * `currency` is an explicit argument, never read from a cookie in here.
+ *
+ * That is what keeps this entry *shared*: every shopper viewing this product in
+ * USD reads one cached entry, and every shopper in EUR reads another. Reading
+ * the cookie inside this body would instead make the entry per-shopper, which
+ * is the anti-pattern plan §7.5 names.
+ */
 export async function getProductPrice(
   entityId: number,
+  currency: string,
   optionValueIds: readonly OptionValueId[] = [],
 ): Promise<Price | undefined> {
   'use cache: remote';
@@ -65,7 +75,7 @@ export async function getProductPrice(
       document: ProductPricesQuery,
       variables: {
         entityId,
-        currencyCode: null,
+        currencyCode: toCurrencyCode(currency),
         // Sorted so two orderings of the same selection share one entry.
         optionValueIds: [...optionValueIds].sort(
           (a, b) => a.optionEntityId - b.optionEntityId || a.valueEntityId - b.valueEntityId,

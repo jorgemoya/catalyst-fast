@@ -1,9 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useActionState } from 'react';
 
-import { subscribeToNewsletter } from '~/app/(storefront)/_actions/newsletter';
-import { t } from '~/lib/i18n/messages';
+import { subscribeToNewsletter } from '~/app/[locale]/(storefront)/_actions/newsletter';
 
 /**
  * Newsletter signup.
@@ -13,6 +14,8 @@ import { t } from '~/lib/i18n/messages';
  * failed silently.
  */
 export function NewsletterForm() {
+  const t = useTranslations();
+
   const [result, action, pending] = useActionState(subscribeToNewsletter, null);
 
   if (result?.status === 'success') {

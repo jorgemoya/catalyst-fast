@@ -40,7 +40,13 @@ const TRACKING_PARAM =
  * would no longer fire. That is a rare rule against a cost paid by every ad click
  * on every page.
  */
-export function toRouteKeyPath(url: URL): string {
+export function toRouteKeyPath(url: URL, pathname = url.pathname): string {
+  /*
+   * `pathname` is an explicit override because the caller has already stripped
+   * the locale prefix. BigCommerce resolves routes per channel and has never
+   * heard of our prefixes — on a French channel the page is `/garden/`, so
+   * keying on `/fr/garden/` would both miss in KV and 404 upstream.
+   */
   const params = new URLSearchParams(url.search);
 
   for (const key of [...params.keys()]) {
@@ -53,7 +59,7 @@ export function toRouteKeyPath(url: URL): string {
 
   const search = params.toString();
 
-  return search ? `${url.pathname}?${search}` : url.pathname;
+  return search ? `${pathname}?${search}` : pathname;
 }
 
 /**

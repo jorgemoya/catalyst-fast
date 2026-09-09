@@ -14,7 +14,17 @@ import { PRODUCT_WITH_OPTIONS, SIMPLE_PRODUCT } from './fixtures';
  * The whole file skips when they're absent, so CI and anyone without a test
  * customer still get a green suite rather than a wall of failures they can't act
  * on.
+ *
+ * **Serial by necessity.** Every test here signs in as the *same* customer, and
+ * BigCommerce's login endpoint rejects concurrent attempts on one account — under
+ * `fullyParallel` the workers race and most of the file fails on a login that
+ * silently stays on `/login/`. The tests also mutate shared state (the cart, the
+ * wishlists, the profile), so parallelising them would be wrong even if the login
+ * held up. Run serially they pass; that is a property of the fixture account, not
+ * of the storefront.
  */
+test.describe.configure({ mode: 'serial' });
+
 const email = process.env.E2E_CUSTOMER_EMAIL;
 const password = process.env.E2E_CUSTOMER_PASSWORD;
 

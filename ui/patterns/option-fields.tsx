@@ -1,8 +1,9 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import type { ProductOptionField } from '~/domain/product-options';
 import { cn } from '~/lib/cn';
-import { t } from '~/lib/i18n/messages';
 import { Image } from '~/ui/primitives/image';
 
 /**
@@ -36,6 +37,8 @@ const inputClass =
   'h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm';
 
 export function OptionField({ field, name, value, onSelect, errors }: Props) {
+  const t = useTranslations();
+
   const label = (
     <span className="mb-2 block text-sm font-medium">
       {field.label}

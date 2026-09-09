@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { query } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { kv } from '~/lib/kv';
+import { channelFor } from '~/lib/config/channels';
+
+import { LOCALE_HEADER, detectLocale, shouldStripPrefix, withLocalePrefix } from './locale';
 import { kvKey, STORE_STATUS_KEY } from '~/lib/kv/keys';
 
 import type { ProxyFactory } from './compose';
@@ -225,14 +228,26 @@ const updateStatusCache = async (
   return statusCache;
 };
 
-const getRouteInfo = async (request: NextRequest, event: NextFetchEvent) => {
-  const channelId = process.env.BIGCOMMERCE_CHANNEL_ID ?? '1';
+const getRouteInfo = async (
+  request: NextRequest,
+  event: NextFetchEvent,
+  /**
+   * The locale's channel, and the path **without** its locale prefix.
+   *
+   * Both are passed in rather than derived here. BigCommerce resolves a route
+   * per channel and knows nothing about our URL prefixes: on a French channel
+   * the page is `/garden/`, not `/fr/garden/`. Looking up the prefixed path
+   * would resolve to nothing and 404 every non-default locale.
+   */
+  locale: { channelId: string; pathname: string },
+) => {
+  const channelId = locale.channelId;
 
   try {
     // Query params stay part of the key — BigCommerce 301 rules can match on
     // them, so `/x` and `/x?a=1` are genuinely different resolutions — but
     // tracking noise is stripped first. See `toRouteKeyPath`.
-    const pathname = toRouteKeyPath(request.nextUrl);
+    const pathname = toRouteKeyPath(request.nextUrl, locale.pathname);
 
     // One round trip for both values.
     let [routeCache, statusCache] = await kv.mget<RouteCache | StorefrontStatusCache>(
@@ -335,23 +350,90 @@ const INTERNAL_ROUTE_ONLY =
  */
 const APP_OWNED_PATH = /^\/(?:cart|checkout|search|login|register|logout|forgot-password|reset-password)\/?$|^\/(?:account|login\/token)\//;
 
+/**
+ * App-owned paths that are **route handlers**, and therefore live outside the
+ * `[locale]` tree.
+ *
+ * `next/root-params` is unavailable in Route Handlers, so they were left at the
+ * top level rather than moved under `app/[locale]/`. That means they must not be
+ * locale-prefixed: rewriting `/checkout` to `/en/checkout` points at a route
+ * that does not exist, and the handoff 404s. Caught by the checkout e2e tests
+ * the first time this shipped.
+ *
+ * These still get the locale *header* (see `localeHeaders`), which is how they
+ * know which channel and currency to use.
+ */
+const LOCALE_EXEMPT_PATH = /^\/checkout\/?$|^\/login\/token\//;
+
+/**
+ * Adds the resolved locale to the *request* headers the app will see.
+ *
+ * `NextResponse.rewrite` takes `request.headers` for exactly this: it mutates
+ * what the downstream handler receives, not what the browser gets back.
+ */
+const localeHeaders = (request: NextRequest, locale: string) => {
+  const headers = new Headers(request.headers);
+
+  headers.set(LOCALE_HEADER, locale);
+
+  return { request: { headers } };
+};
+
 const isRscRequest = (request: NextRequest): boolean =>
   request.headers.get('RSC') === '1' || request.headers.get('Next-Router-Prefetch') === '1';
 
 export const withRoutes: ProxyFactory = () => async (request, event) => {
-  if (APP_OWNED_PATH.test(request.nextUrl.pathname)) {
-    return NextResponse.next();
+  /*
+   * Locale first, because everything below works on the *unprefixed* path.
+   *
+   * `with-routes` resolves vanity URLs against BigCommerce and caches the answer
+   * in KV; that cache is already keyed by channel id, and a locale is a channel,
+   * so the two stay consistent as long as this strips the prefix before any
+   * lookup happens. See `proxies/locale.ts`.
+   */
+  const detected = detectLocale(request);
+  const { locale } = detected;
+  const pathname = detected.pathname;
+
+  /*
+   * `/en/garden/` and `/garden/` must not both serve the page: that is duplicate
+   * content for crawlers and two KV entries for one URL. The default locale's
+   * canonical form is the prefix-free one, so redirect to it.
+   */
+  if (shouldStripPrefix(detected)) {
+    const canonical = new URL(pathname, request.url);
+
+    canonical.search = request.nextUrl.search;
+
+    return NextResponse.redirect(canonical, { status: 301 });
   }
 
-  if (INTERNAL_ROUTE_ONLY.test(request.nextUrl.pathname) && !isRscRequest(request)) {
+  const localized = (target: string): string => withLocalePrefix(target, locale);
+
+  if (APP_OWNED_PATH.test(pathname)) {
+    // Route handlers stay at the top level and must keep their unprefixed path;
+    // everything else now lives under the locale segment, so passing through
+    // unprefixed would land on nothing and 404.
+    const target = LOCALE_EXEMPT_PATH.test(pathname) ? pathname : localized(pathname);
+    const appUrl = new URL(target, request.url);
+
+    appUrl.search = request.nextUrl.search;
+
+    return NextResponse.rewrite(appUrl, localeHeaders(request, locale));
+  }
+
+  if (INTERNAL_ROUTE_ONLY.test(pathname) && !isRscRequest(request)) {
     return new NextResponse(null, { status: 404 });
   }
 
-  const { route, status } = await getRouteInfo(request, event);
+  const { route, status } = await getRouteInfo(request, event, {
+    channelId: channelFor(locale).channelId,
+    pathname,
+  });
 
   if (status === 'MAINTENANCE') {
     // The 503 does not currently stick on a rewrite — https://github.com/vercel/next.js/issues/50155
-    return NextResponse.rewrite(new URL('/maintenance', request.url), { status: 503 });
+    return NextResponse.rewrite(new URL(localized('/maintenance'), request.url), { status: 503 });
   }
 
   const redirectConfig = {
@@ -444,12 +526,12 @@ export const withRoutes: ProxyFactory = () => async (request, event) => {
 
     default:
       // Unresolved: hand back to file-system routing, which 404s.
-      url = new URL(request.url).pathname;
+      url = pathname;
   }
 
-  const rewriteUrl = new URL(url, request.url);
+  const rewriteUrl = new URL(localized(url), request.url);
 
   rewriteUrl.search = request.nextUrl.search;
 
-  return NextResponse.rewrite(rewriteUrl);
+  return NextResponse.rewrite(rewriteUrl, localeHeaders(request, locale));
 };

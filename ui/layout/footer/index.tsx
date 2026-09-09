@@ -1,3 +1,4 @@
+import { getT } from '~/lib/i18n/server';
 import { cacheLife } from 'next/cache';
 import { Suspense } from 'react';
 
@@ -9,7 +10,6 @@ import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { PaymentIcons } from './payment-icons';
 import { SocialLinks } from './social-links';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Site footer. Entirely server-rendered from two cached reads, both of which are
@@ -46,6 +46,8 @@ async function getCopyrightYear(): Promise<number> {
 }
 
 async function FooterContents() {
+  const t = await getT();
+
   const [categories, { brands, pages }, settings, giftCertificates, year] = await Promise.all([
     getTopLevelCategories(),
     getSiteLinks(),

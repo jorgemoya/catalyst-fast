@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-import { t } from '~/lib/i18n/messages';
+/** Copy injected by the caller — see the note in `domain/address.ts`. */
+export interface RegistrationMessages {
+  required: string;
+  invalidEmail: string;
+  passwordTooShort: (min: number) => string;
+  passwordMismatch: string;
+}
+
 
 /**
  * Registration form shape.
@@ -23,21 +30,22 @@ import { t } from '~/lib/i18n/messages';
  */
 const MIN_PASSWORD_LENGTH = 8;
 
-export const registerSchema = z
-  .object({
-    firstName: z.string().trim().min(1, t('Auth.required')).max(50),
-    lastName: z.string().trim().min(1, t('Auth.required')).max(50),
-    email: z.string().trim().min(1, t('Auth.required')).email(t('Auth.invalidEmail')),
+export const registerSchema = (m: RegistrationMessages) =>
+  z
+    .object({
+    firstName: z.string().trim().min(1, m.required).max(50),
+    lastName: z.string().trim().min(1, m.required).max(50),
+    email: z.string().trim().min(1, m.required).email(m.invalidEmail),
     password: z
       .string()
-      .min(MIN_PASSWORD_LENGTH, t('Auth.passwordTooShort', { min: MIN_PASSWORD_LENGTH })),
-    confirmPassword: z.string().min(1, t('Auth.required')),
+      .min(MIN_PASSWORD_LENGTH, m.passwordTooShort(MIN_PASSWORD_LENGTH)),
+    confirmPassword: z.string().min(1, m.required),
     company: z.string().trim().max(100).optional(),
     phone: z.string().trim().max(50).optional(),
   })
   // Reported against the confirmation field, not the form, so it appears next to
   // the input the shopper needs to fix.
   .refine((values) => values.password === values.confirmPassword, {
-    message: t('Auth.passwordMismatch'),
+    message: m.passwordMismatch,
     path: ['confirmPassword'],
   });

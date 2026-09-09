@@ -1,8 +1,10 @@
+import { getT } from '~/lib/i18n/server';
 import { type Breadcrumb, ELLIPSIS, truncateBreadcrumbs } from '~/domain/breadcrumbs';
 import { Link } from '~/ui/primitives/link';
-import { t } from '~/lib/i18n/messages';
 
-export function Breadcrumbs({ items }: { items: Breadcrumb[] }) {
+export async function Breadcrumbs({ items }: { items: Breadcrumb[] }) {
+  const t = await getT();
+
   if (items.length === 0) {
     return null;
   }

@@ -1,3 +1,4 @@
+import { getT } from '~/lib/i18n/server';
 import type { Facet, FacetOption } from '~/domain/facets';
 import type { RawSearchParams } from '~/domain/listing-params';
 import { resetFiltersHref, setValueHref, toggleValueHref } from '~/domain/listing-url';
@@ -5,7 +6,6 @@ import { cn } from '~/lib/cn';
 import { Link } from '~/ui/primitives/link';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Facet panel. Entirely server-rendered — every control is a link or a plain GET
@@ -20,7 +20,9 @@ interface Props {
   hasActiveFilters: boolean;
 }
 
-export function Facets({ facets, pathname, searchParams, hasActiveFilters }: Props) {
+export async function Facets({ facets, pathname, searchParams, hasActiveFilters }: Props) {
+  const t = await getT();
+
   if (facets.length === 0) {
     return null;
   }
@@ -186,7 +188,7 @@ function OptionLink({
   );
 }
 
-function RatingFacet({
+async function RatingFacet({
   pathname,
   searchParams,
   selected,
@@ -195,6 +197,8 @@ function RatingFacet({
   searchParams: RawSearchParams;
   selected?: number;
 }) {
+  const t = await getT();
+
   return (
     <ul className="flex flex-col gap-1.5">
       {[4, 3, 2, 1].map((rating) => {
@@ -226,7 +230,7 @@ function RatingFacet({
   );
 }
 
-function PriceRange({
+async function PriceRange({
   min,
   max,
   searchParams,
@@ -235,6 +239,8 @@ function PriceRange({
   max?: number;
   searchParams: RawSearchParams;
 }) {
+  const t = await getT();
+
   // A plain GET form: submitting replaces the query string, so this needs no JS.
   // Other active params are carried across as hidden inputs.
   const preserved = Object.entries(searchParams).filter(

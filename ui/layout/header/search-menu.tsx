@@ -1,12 +1,13 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { Dialog } from '@base-ui/react/dialog';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
-import { searchSuggestions } from '~/app/(storefront)/search/_actions/suggest';
+import { searchSuggestions } from '~/app/[locale]/(storefront)/search/_actions/suggest';
 import { MIN_QUERY_LENGTH, type Suggestion } from '~/domain/suggestions';
-import { t } from '~/lib/i18n/messages';
 import { Image } from '~/ui/primitives/image';
 
 /**
@@ -26,6 +27,8 @@ import { Image } from '~/ui/primitives/image';
 const DEBOUNCE_MS = 200;
 
 export function SearchMenu() {
+  const t = useTranslations();
+
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');

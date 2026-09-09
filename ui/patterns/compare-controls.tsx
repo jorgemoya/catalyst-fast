@@ -1,8 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useActionState, useState, useSyncExternalStore } from 'react';
 
-import { addToCart } from '~/app/(storefront)/product/[id]/_actions/add-to-cart';
+import { addToCart } from '~/app/[locale]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
   MAX_COMPARE_SELECTION,
   compareHref,
@@ -10,7 +12,6 @@ import {
   serializeCompareIds,
   toggleCompare,
 } from '~/domain/compare-selection';
-import { t } from '~/lib/i18n/messages';
 import { Link } from '~/ui/primitives/link';
 
 /**
@@ -83,6 +84,8 @@ export function CompareCheckbox({
   productId: number;
   productName: string;
 }) {
+  const t = useTranslations();
+
   const selection = useCompareSelection();
 
   if (!enabled) {
@@ -116,6 +119,8 @@ export function CompareCheckbox({
  * first tick is in the way for the whole session.
  */
 export function CompareDrawer({ enabled }: { enabled: boolean }) {
+  const t = useTranslations();
+
   const selection = useCompareSelection();
 
   if (!enabled || selection.length < 2) {
@@ -168,6 +173,8 @@ export function AddToCompareButton({
   hasOptions: boolean;
   inStock: boolean;
 }) {
+  const t = useTranslations();
+
   const [result, action, pending] = useActionState(addToCart.bind(null, productId), null);
   const [added, setAdded] = useState(false);
 

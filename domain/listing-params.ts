@@ -80,6 +80,16 @@ export interface ListingKey {
   isFeatured?: boolean;
   /** `[attributeKey, sortedValues]` pairs, sorted by key. */
   attributes?: Array<[string, string[]]>;
+  /**
+   * Display currency.
+   *
+   * Part of the key so listings in different currencies are different entries,
+   * each shared by everyone using that currency. Omitted for the channel default
+   * so the shell's key is unchanged — adding `currency: 'USD'` to it would
+   * invalidate every existing entry and, worse, make the prerendered default key
+   * differ from the one a request computes.
+   */
+  currency?: string;
 }
 
 const toArray = (value: string | string[] | undefined): string[] => {
@@ -120,6 +130,17 @@ export interface CanonicalizeOptions {
   brandId?: number;
   /** Merchant-configured default sort for this category; omitted from the key. */
   defaultSort?: SortValue;
+  /**
+   * The shopper's display currency, and the channel default to compare it
+   * against.
+   *
+   * Both are needed because the currency is only added to the key when it
+   * *differs* from the default — the prerendered shell is built with no currency
+   * in its key, so injecting the default would produce a key that can never
+   * match the entry that was prerendered.
+   */
+  currency?: string;
+  defaultCurrency?: string;
 }
 
 export function canonicalizeListingParams(
@@ -127,6 +148,11 @@ export function canonicalizeListingParams(
   options: CanonicalizeOptions = {},
 ): ListingKey {
   const key: ListingKey = { limit: DEFAULT_LIMIT };
+
+  // Only a non-default currency reaches the key. See CanonicalizeOptions.
+  if (options.currency && options.currency !== options.defaultCurrency) {
+    key.currency = options.currency;
+  }
 
   if (options.categoryId !== undefined) {
     key.categoryId = options.categoryId;

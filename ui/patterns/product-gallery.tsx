@@ -1,11 +1,12 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 
 import type { ProductImage } from '~/data/product';
 import { cn } from '~/lib/cn';
 import { Image } from '~/ui/primitives/image';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Product gallery.
@@ -23,6 +24,8 @@ const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function ProductGallery({ images, productName }: { images: ProductImage[]; productName: string }) {
+  const t = useTranslations();
+
   const [activeIndex, setActiveIndex] = useState(0);
   const active = images[activeIndex] ?? images[0];
 

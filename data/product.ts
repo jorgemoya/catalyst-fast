@@ -6,8 +6,11 @@ import { type ProductOptionField, toProductOptions } from '~/domain/product-opti
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { ProductOptionsFragment } from '~/lib/bigcommerce/fragments/product-options';
+import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 import { buildConfig } from '~/lib/config';
 import { env } from '~/lib/env';
 
@@ -145,7 +148,11 @@ export async function getProduct(entityId: number): Promise<Product | null> {
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
-  const data = await query({ document: ProductQuery, variables: { entityId } });
+  const data = await query({
+    document: ProductQuery,
+    variables: { entityId },
+    locale: await activeLocale(),
+  });
   const product = data.site.product;
 
   if (!product) {
@@ -256,14 +263,18 @@ export interface RelatedProduct {
   numberOfReviews: number;
 }
 
-export async function getRelatedProducts(entityId: number): Promise<RelatedProduct[]> {
+export async function getRelatedProducts(
+  entityId: number,
+  currency: string,
+): Promise<RelatedProduct[]> {
   'use cache';
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
   const data = await query({
     document: RelatedProductsQuery,
-    variables: { entityId, currencyCode: null },
+    variables: { entityId, currencyCode: toCurrencyCode(currency) },
+    locale: await activeLocale(),
   });
 
   return removeEdgesAndNodes(data.site.product?.relatedProducts ?? { edges: [] }).map((related) => ({
@@ -330,7 +341,9 @@ export async function getProductReviews(
   cacheLife('reviews');
   cacheTag(tags.productReviews(entityId), tags.product(entityId));
 
-  const data = await query({ document: ReviewsQuery, variables: { entityId, first, after } });
+  const data = await query({ document: ReviewsQuery, variables: { entityId, first, after },
+    locale: await activeLocale(),
+  });
   const connection = data.site.product?.reviews;
 
   if (!connection) {
@@ -410,7 +423,7 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
     const data: ResultOf<typeof ProductIdsQuery> = await query({
       document: ProductIdsQuery,
       variables: { first: Math.min(PRODUCTS_MAX_PAGE_SIZE, limit - ids.length), after },
-    });
+  });
 
     ids.push(...removeEdgesAndNodes(data.site.products).map((product) => product.entityId));
 

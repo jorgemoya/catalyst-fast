@@ -1,8 +1,9 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { Dialog } from '@base-ui/react/dialog';
 import type { ReactNode } from 'react';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Mobile drawer. A separate island from `NavMenu` on purpose — desktop visitors
@@ -10,6 +11,8 @@ import { t } from '~/lib/i18n/messages';
  * Splitting them is only possible because neither takes data as props.
  */
 export function MobileNav({ children }: { children: ReactNode }) {
+  const t = useTranslations();
+
   return (
     <Dialog.Root>
       <Dialog.Trigger

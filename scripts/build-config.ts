@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,6 +39,11 @@ const SettingsQuery = `
           cdnUrl
           checkoutUrl
         }
+        locales {
+          code
+          path
+          isDefault
+        }
       }
     }
   }
@@ -53,12 +58,100 @@ const ResponseSchema = z.object({
           cdnUrl: z.string().nullable(),
           checkoutUrl: z.string(),
         }),
+        locales: z
+          .array(z.object({ code: z.string(), path: z.string().nullish(), isDefault: z.boolean() }))
+          .nullish(),
       })
       .nullable(),
   }),
 });
 
 const CONFIG_FILE = join(dirname(fileURLToPath(import.meta.url)), '../lib/config/build-config.json');
+
+const MESSAGES_DIR = join(dirname(fileURLToPath(import.meta.url)), '../messages');
+const CHANNELS_FILE = 'lib/config/channels.ts';
+
+/**
+ * Reports locales the store offers that this repo cannot serve, and vice versa.
+ *
+ * The locale list is read from BigCommerce at runtime (`data/locales.ts`), but two
+ * things about it are settled at build time: whether `messages/<code>.json`
+ * exists, and whether `CHANNELS` in `lib/config/channels.ts` knows the code — the
+ * proxy's routing guard reads the latter statically, deliberately, so it does not
+ * put a network call in front of every request.
+ *
+ * That leaves exactly one way for the two to drift: a merchant enables a language
+ * in the control panel and nobody adds the catalogue. The symptom would be silence
+ * — the locale simply never appears in the switcher, with nothing to explain why.
+ * So say it here, at the one moment someone is watching the output.
+ *
+ * A **warning, not an error**. A merchant experimenting with a language in the
+ * control panel should not be able to break a deploy of an unrelated change, and
+ * the runtime behaviour is already safe: an untranslated locale is filtered out
+ * rather than served half-English.
+ */
+async function reportLocaleDrift(
+  locales: Array<{ code: string; path?: string | null; isDefault: boolean }>,
+): Promise<void> {
+  const storeLocales = locales.map((locale) => locale.code);
+
+  const routableDefault = (await readFile(join(dirname(fileURLToPath(import.meta.url)), '..', CHANNELS_FILE), 'utf8')).match(
+    /^export const DEFAULT_LOCALE = '([^']+)';$/mu,
+  )?.[1];
+  const storeDefault = locales.find((locale) => locale.isDefault)?.code;
+
+  /*
+   * These answer different questions — BigCommerce's is "what language is the
+   * catalog in", ours is "whose URL prefix do we hide" — but a storefront where
+   * they disagree is almost always a mistake, and the symptom is obscure: the
+   * language switcher emits URLs the proxy does not serve.
+   */
+  if (storeDefault && routableDefault && storeDefault !== routableDefault) {
+    console.warn(
+      `[build-config] BigCommerce's default locale is "${storeDefault}" but DEFAULT_LOCALE in ${CHANNELS_FILE} is "${routableDefault}" — "${routableDefault}" is the one served on prefix-free URLs. Change one if that is not intended.`,
+    );
+  }
+
+  for (const { code, path } of locales) {
+    if (path) {
+      console.warn(
+        `[build-config] BigCommerce sets a URL subfolder ("${path}") for the "${code}" locale, but routing uses /${code}/ — the proxy resolves locales from a static list. See proxies/locale.ts.`,
+      );
+    }
+  }
+
+  if (storeLocales.length === 0) {
+    return;
+  }
+
+  const translated = (await readdir(MESSAGES_DIR))
+    .filter((file) => file.endsWith('.json'))
+    .map((file) => file.replace(/\.json$/, ''));
+
+  const routable = (await readFile(join(dirname(fileURLToPath(import.meta.url)), '..', CHANNELS_FILE), 'utf8'))
+    .match(/^\s{2}([a-z]{2}(?:-[A-Za-z0-9]+)?):\s*\{$/gmu)
+    ?.map((line) => line.trim().replace(/:\s*\{$/u, '')) ?? [];
+
+  for (const code of storeLocales) {
+    if (!translated.includes(code)) {
+      console.warn(
+        `[build-config] BigCommerce offers the "${code}" locale but messages/${code}.json is missing — it will not be served. Add the catalogue to enable it.`,
+      );
+    } else if (!routable.includes(code)) {
+      console.warn(
+        `[build-config] BigCommerce offers the "${code}" locale and messages/${code}.json exists, but ${CHANNELS_FILE} has no entry — the proxy will not route /${code}/. Add one.`,
+      );
+    }
+  }
+
+  for (const code of translated) {
+    if (!storeLocales.includes(code)) {
+      console.warn(
+        `[build-config] messages/${code}.json exists but BigCommerce does not offer the "${code}" locale — it will not be served. Enable it in the control panel.`,
+      );
+    }
+  }
+}
 
 async function main(): Promise<void> {
   const storeHash = process.env.BIGCOMMERCE_STORE_HASH;
@@ -110,6 +203,8 @@ async function main(): Promise<void> {
 
   await writeFile(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   console.log(`[build-config] wrote ${CONFIG_FILE}`);
+
+  await reportLocaleDrift(settings.locales ?? []);
 }
 
 main().catch((error: unknown) => {

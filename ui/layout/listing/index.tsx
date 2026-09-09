@@ -1,9 +1,11 @@
+import { getT } from '~/lib/i18n/server';
 import type { ReactNode } from 'react';
 import { Suspense } from 'react';
 
 import type { Breadcrumb } from '~/domain/breadcrumbs';
 import { getFacets, searchListing } from '~/data/search';
 import { getStoreSettings } from '~/data/settings';
+import { getDefaultCurrency, getSelectedCurrency } from '~/lib/currency';
 import {
   canonicalizeListingParams,
   type CanonicalizeOptions,
@@ -18,7 +20,6 @@ import { Prose } from '~/ui/patterns/prose';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
 import { SortSelect } from '~/ui/patterns/sort-select';
 import { Skeleton } from '~/ui/primitives/skeleton';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Listing page composition, shared by category, brand, and (Phase 5) search.
@@ -112,7 +113,9 @@ ListingLayout.Body = Body;
  * "browse into Succulents" and "narrow these results to Succulents" are different
  * intents, and only the former produces a canonical, indexable URL.
  */
-export function SubcategoryLinks({ items }: { items: Breadcrumb[] }) {
+export async function SubcategoryLinks({ items }: { items: Breadcrumb[] }) {
+  const t = await getT();
+
   if (items.length === 0) {
     return null;
   }
@@ -325,7 +328,23 @@ async function RefinedGrid({
   emptyState,
 }: RegionProps & { emptyState: ReactNode }) {
   const raw = await searchParams;
-  const key = canonicalizeListingParams(raw, options);
+  /*
+   * Currency joins the key here, in the *refined* grid, and nowhere else.
+   *
+   * This region already awaits `searchParams`, so it is a dynamic hole and a
+   * cookie read adds no cacheability cost. `DefaultGrid` — the cached fallback
+   * that lands in the shell — deliberately does not read it and renders the
+   * channel default, which is what keeps the unfiltered listing static for the
+   * overwhelming majority who never switch currency.
+   *
+   * `canonicalizeListingParams` drops the currency from the key when it equals
+   * the default, so a USD shopper computes exactly the key that was prerendered.
+   */
+  const key = canonicalizeListingParams(raw, {
+    ...options,
+    currency: await getSelectedCurrency(),
+    defaultCurrency: await getDefaultCurrency(),
+  });
   const [listing, showRating, compare] = await Promise.all([
     searchListing(key),
     shouldShowRating(),
@@ -377,7 +396,9 @@ async function RefinedFacets({ options, pathname, searchParams }: RegionProps) {
   );
 }
 
-function CountText({ total }: { total: number }) {
+async function CountText({ total }: { total: number }) {
+  const t = await getT();
+
   return (
     // A PPR response contains both the cached fallback and the streamed result,
     // so a text-matching selector is ambiguous by construction. The testid gives

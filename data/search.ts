@@ -13,8 +13,11 @@ import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { PaginationFragment } from '~/lib/bigcommerce/fragments/pagination';
 import { recordCacheMiss } from '~/lib/telemetry';
 import { ProductCardFragment } from '~/lib/bigcommerce/fragments/product-card';
+import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 import { getStoreSettings } from './settings';
 
 /**
@@ -211,7 +214,7 @@ function toVariables(key: ListingKey) {
     : { first: key.limit, after: key.after ?? null };
   return {
     ...pagination,
-    currencyCode: null,
+    currencyCode: key.currency ? toCurrencyCode(key.currency) : null,
     sort: sort ?? null,
     filters: {
       categoryEntityId: key.categoryId ?? null,
@@ -234,7 +237,9 @@ function toVariables(key: ListingKey) {
 
 async function fetchListing(key: ListingKey): Promise<Listing> {
   const [data, settings] = await Promise.all([
-    query({ document: SearchProductsQuery, variables: toVariables(key) }),
+    query({ document: SearchProductsQuery, variables: toVariables(key),
+    locale: await activeLocale(),
+  }),
     getStoreSettings(),
   ]);
   const results = data.site.search.searchProducts;

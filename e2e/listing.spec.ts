@@ -44,26 +44,69 @@ test.describe('refinement', () => {
     expect(internal, 'no internal route paths should appear in the HTML').toBe(0);
   });
 
+  /*
+   * Runs against `/shop-all/`, not `CATEGORY`.
+   *
+   * `/garden/` holds two products and its only visible facets are star ratings
+   * and boolean toggles, none of which render a count and none of which
+   * reliably narrow a two-item set — so the original "click the first option and
+   * assert the count changed" failed roughly one run in three depending on which
+   * option it landed on. `/shop-all/` has 13 products and 17 counted options,
+   * which is what makes a deterministic assertion possible at all.
+   */
   test('applying a facet narrows the result count', async ({ page }) => {
-    await page.goto(CATEGORY);
+    await page.goto('/shop-all/');
 
-    const before = await page.getByTestId('result-count').last().innerText();
+    const countOf = async (): Promise<number> => {
+      const text = await page.getByTestId('result-count').last().innerText();
+
+      return Number(/\d+/.exec(text)?.[0] ?? '0');
+    };
+
+    const before = await countOf();
 
     /*
      * Facet groups render as `<details>`, and a collapsed one hides its links —
      * which group is open depends on the merchant's `isCollapsedByDefault`, so a
      * bare `.first()` can latch onto an option that never becomes clickable.
-     * Open every group first, then take the first visible unselected option.
      */
     for (const group of await page.locator('details').all()) {
-      await group.evaluate((element) => (element as HTMLDetailsElement).open = true);
+      await group.evaluate((element) => ((element as HTMLDetailsElement).open = true));
     }
 
-    await page.locator('details a[aria-pressed="false"]').filter({ visible: true }).first().click();
+    /*
+     * Pick an option whose own product count is **strictly less** than the
+     * current total, rather than simply the first one available.
+     *
+     * A facet that matches every product in the category is a legitimate thing
+     * for a merchant to have, and clicking it narrows nothing — so the old
+     * "click the first option and assert the count changed" was a coin flip that
+     * failed roughly one run in three. Each option renders its own count, so the
+     * test can choose one that must narrow.
+     */
+    const options = await page.locator('details a[aria-pressed="false"]').filter({ visible: true }).all();
+    let target: (typeof options)[number] | undefined;
+    let expected = 0;
+
+    for (const option of options) {
+      // The count is the trailing number in "Sagaform 1"; label and count are
+      // inline spans, so there is no newline to split on.
+      const count = Number(/(\d+)\s*$/.exec((await option.innerText()).replace(/\s+/g, ' ').trim())?.[1] ?? '0');
+
+      if (count > 0 && count < before) {
+        target = option;
+        expected = count;
+        break;
+      }
+    }
+
+    test.skip(!target, 'no facet in this category narrows the result set');
+
+    await target?.click();
     await page.waitForURL(/\?/);
 
-    await expect(page.getByTestId('result-count').last()).not.toHaveText(before);
-    await expect(page).toHaveURL(new RegExp(`^[^?]*${CATEGORY}\\?`));
+    await expect(page.getByTestId('result-count').last()).toContainText(String(expected));
+    await expect(page).toHaveURL(/^[^?]*\/shop-all\/\?/);
   });
 
   test('sorting updates the URL without leaving the vanity path', async ({ page }) => {

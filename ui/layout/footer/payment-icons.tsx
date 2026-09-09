@@ -1,4 +1,4 @@
-import { t } from '~/lib/i18n/messages';
+import { getT } from '~/lib/i18n/server';
 
 /**
  * Payment-method marks in the footer.
@@ -23,7 +23,9 @@ const METHODS = [
   { name: 'PayPal', d: 'M11.5 6h5.2c2.8 0 4.6 1.4 4.2 4.2-.4 3-2.6 4.4-5.4 4.4h-1.8l-.6 3.9h-2.7zm2.3 2.2-.5 3.4h1.4c1.4 0 2.4-.6 2.6-2 .2-1-.4-1.4-1.5-1.4zM19 9.5h2.6c2.5 0 4.1 1.2 3.7 3.8-.4 2.7-2.4 4-4.9 4h-1.6l-.6 3.7h-2.5z' },
 ];
 
-export function PaymentIcons() {
+export async function PaymentIcons() {
+  const t = await getT();
+
   return (
     <div aria-label={t('Footer.payments')} className="flex flex-wrap items-center gap-2" role="list">
       {METHODS.map((method) => (

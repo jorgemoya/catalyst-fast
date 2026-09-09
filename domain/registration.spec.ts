@@ -2,6 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import { registerSchema } from './registration';
 
+/**
+ * Fixture copy. The schema takes injected messages now, which is the point of
+ * the injection: the domain stays free of any translator or locale.
+ */
+const messages = {
+  required: 'required',
+  invalidEmail: 'invalidEmail',
+  passwordTooShort: (min: number) => `passwordTooShort:${min}`,
+  passwordMismatch: 'passwordMismatch',
+};
+
+const schema = registerSchema(messages);
+
 const valid = {
   firstName: 'Ana',
   lastName: 'Diaz',
@@ -10,15 +23,15 @@ const valid = {
   confirmPassword: 'correct-horse',
 };
 
-describe('registerSchema', () => {
+describe('schema', () => {
   it('accepts a complete registration', () => {
-    expect(registerSchema.safeParse(valid).success).toBe(true);
+    expect(schema.safeParse(valid).success).toBe(true);
   });
 
   it('reports a password mismatch against the confirmation field', () => {
     // Pathed at `confirmPassword` so the message lands next to the input the
     // shopper has to fix, not at the top of the form.
-    const result = registerSchema.safeParse({ ...valid, confirmPassword: 'different' });
+    const result = schema.safeParse({ ...valid, confirmPassword: 'different' });
 
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(['confirmPassword']);
@@ -27,14 +40,14 @@ describe('registerSchema', () => {
   it('enforces a local minimum password length', () => {
     // Immediate feedback only — the store's real complexity rules are enforced
     // by BigCommerce and surfaced verbatim.
-    expect(registerSchema.safeParse({ ...valid, password: 'short', confirmPassword: 'short' }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, password: 'short', confirmPassword: 'short' }).success).toBe(false);
   });
 
   it('rejects a malformed email', () => {
-    expect(registerSchema.safeParse({ ...valid, email: 'nope' }).success).toBe(false);
+    expect(schema.safeParse({ ...valid, email: 'nope' }).success).toBe(false);
   });
 
   it('keeps company and phone optional', () => {
-    expect(registerSchema.safeParse({ ...valid, company: 'Acme', phone: '555' }).success).toBe(true);
+    expect(schema.safeParse({ ...valid, company: 'Acme', phone: '555' }).success).toBe(true);
   });
 });

@@ -1,9 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
-import { t } from '~/lib/i18n/messages';
 
 /**
  * The search box on `/search`.
@@ -18,6 +19,8 @@ import { t } from '~/lib/i18n/messages';
  * along with everything else, for a value the browser already has.
  */
 export function SearchField() {
+  const t = useTranslations();
+
   const router = useRouter();
   const params = useSearchParams();
   const [term, setTerm] = useState(() => params.get('term') ?? '');

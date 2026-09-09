@@ -8,6 +8,8 @@ import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { PaginationFragment } from '~/lib/bigcommerce/fragments/pagination';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 import { buildConfig } from '~/lib/config';
 import { env } from '~/lib/env';
 
@@ -110,7 +112,9 @@ export async function getWebpage(id: string): Promise<WebPage | null> {
   cacheLife('content');
   cacheTag(tags.webpage(id), tags.content);
 
-  const data = await query({ document: WebPageQuery, variables: { id } });
+  const data = await query({ document: WebPageQuery, variables: { id },
+    locale: await activeLocale(),
+  });
   const node = data.node;
 
   if (node?.__typename !== 'NormalPage' && node?.__typename !== 'ContactPage') {
@@ -214,6 +218,7 @@ export async function getBlogPosts(tag?: string, after?: string): Promise<BlogIn
       // empty blog index rather than an error.
       filters: tag ? { tags: [tag] } : null,
     },
+    locale: await activeLocale(),
   });
 
   const blog = data.site.content.blog;
@@ -293,7 +298,9 @@ export async function getBlogPost(entityId: number): Promise<BlogPost | null> {
   cacheLife('content');
   cacheTag(tags.blogPost(entityId), tags.content);
 
-  const data = await query({ document: BlogPostQuery, variables: { entityId } });
+  const data = await query({ document: BlogPostQuery, variables: { entityId },
+    locale: await activeLocale(),
+  });
   const blog = data.site.content.blog;
   const post = blog?.post;
 

@@ -1,8 +1,8 @@
+import { getT } from '~/lib/i18n/server';
 import { isSinglePage, type Pagination as PaginationModel } from '~/domain/pagination';
 import type { RawSearchParams } from '~/domain/listing-params';
 import { cursorHref } from '~/domain/listing-url';
 import { Link } from '~/ui/primitives/link';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Cursor pagination, server-rendered as links.
@@ -15,7 +15,7 @@ import { t } from '~/lib/i18n/messages';
  * Rendering as `<a>` keeps pagination crawlable and prefetchable, and `rel`
  * prev/next tells crawlers these are a sequence rather than duplicate content.
  */
-export function Pagination({
+export async function Pagination({
   pagination,
   pathname,
   searchParams,
@@ -24,6 +24,8 @@ export function Pagination({
   pathname: string;
   searchParams: RawSearchParams;
 }) {
+  const t = await getT();
+
   const { hasNextPage, hasPreviousPage, startCursor, endCursor } = pagination;
 
   if (isSinglePage(pagination)) {

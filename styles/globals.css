@@ -53,3 +53,21 @@
   max-inline-size: var(--container-page);
   padding-inline: var(--spacing-page);
 }
+
+/*
+ * Price overlay.
+ *
+ * The prerendered price is in the static shell; a shopper whose price differs —
+ * a customer-group price list, or a switched display currency — gets an overlay
+ * streamed in after it. Both are in the DOM, so without this rule the page shows
+ * two prices at once ("$80.00 €77.75"), which is exactly what a shopper reads as
+ * a broken store.
+ *
+ * `:has()` rather than JavaScript because the overlay arrives by streaming: the
+ * base price must hide the moment the overlay lands, with no hydration and no
+ * effect. When no overlay renders — nearly all traffic — this rule never
+ * matches and the shell price stands untouched.
+ */
+[data-price-slot]:has([data-price-overlay]) [data-price-base] {
+  display: none;
+}

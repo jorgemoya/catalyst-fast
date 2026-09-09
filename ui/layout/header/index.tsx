@@ -1,4 +1,8 @@
+import { getT } from '~/lib/i18n/server';
 import { Suspense } from 'react';
+
+import { CurrencyGate } from './currency-gate';
+import { LocaleGate } from './locale-gate';
 
 import { getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
 import { Link } from '~/ui/primitives/link';
@@ -10,7 +14,6 @@ import { CategoryNav, CategoryNavSkeleton } from './category-nav';
 import { MobileNav } from './mobile-nav';
 import { SearchMenu } from './search-menu';
 import { StoreLogo } from './store-logo';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Site header.
@@ -28,7 +31,9 @@ import { t } from '~/lib/i18n/messages';
  * signed-in shopper's — the rest of the header, and the whole page body, is the
  * same prerendered shell for both.
  */
-export function Header() {
+export async function Header() {
+  const t = await getT();
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-sm">
       <div className="page-container flex h-16 items-center gap-4">
@@ -47,13 +52,23 @@ export function Header() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1">
+          {/* Its own boundary: it reads the currency cookie, so it is a hole.
+              Nothing else in the header becomes dynamic because of it. */}
+          {/* Locale comes from the root param, so this stays in the shell.
+              Currency comes from a cookie, so that one is a hole. */}
+          <LocaleGate />
+
+          <Suspense fallback={null}>
+            <CurrencyGate />
+          </Suspense>
+
           <SearchMenu />
 
-          <Suspense fallback={<AccountMenuSkeleton />}>
+          <Suspense fallback={<AccountMenuSkeleton label={t('Auth.signIn')} />}>
             <AccountMenu />
           </Suspense>
 
-          <Suspense fallback={<CartBadgeSkeleton />}>
+          <Suspense fallback={<CartBadgeSkeleton label={t('Header.cart')} />}>
             <CartBadge />
           </Suspense>
         </div>
@@ -73,6 +88,8 @@ export function Header() {
  * category page itself, which is where they belong.
  */
 async function MobileNavContents() {
+  const t = await getT();
+
   const categories = await getTopLevelCategories();
   const visible = categories.slice(0, NAV_LIMITS.mobile);
 

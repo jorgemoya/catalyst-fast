@@ -1,9 +1,10 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { NavigationMenu } from '@base-ui/react/navigation-menu';
 import NextLink from 'next/link';
 import type { ReactNode } from 'react';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * The interactive shell of the mega-menu — and nothing else.
@@ -66,6 +67,8 @@ export function NavMenuItem({
   href: string;
   children?: ReactNode;
 }) {
+  const t = useTranslations();
+
   if (!children) {
     return (
       <NavigationMenu.Item>

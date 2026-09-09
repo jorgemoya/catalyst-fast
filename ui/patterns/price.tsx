@@ -1,5 +1,5 @@
+import { getFormatCurrency } from '~/lib/i18n/server';
 import type { Money, Price, TaxDisplay } from '~/domain/price';
-import { formatCurrency } from '~/lib/i18n/messages';
 import { cn } from '~/lib/cn';
 
 /**
@@ -11,7 +11,9 @@ import { cn } from '~/lib/cn';
  */
 
 /** Picks which tax variant(s) to show. BOTH renders two lines. */
-function amounts(money: Money, mode: TaxDisplay): string[] {
+async function amounts(money: Money, mode: TaxDisplay): Promise<string[]> {
+  const formatCurrency = await getFormatCurrency();
+
   const inc = formatCurrency(money.inc, money.currencyCode);
   const ex = formatCurrency(money.ex, money.currencyCode);
 
@@ -30,8 +32,16 @@ function amounts(money: Money, mode: TaxDisplay): string[] {
   }
 }
 
-function MoneyText({ money, mode, className }: { money: Money; mode: TaxDisplay; className?: string }) {
-  const lines = amounts(money, mode);
+async function MoneyText({
+  money,
+  mode,
+  className,
+}: {
+  money: Money;
+  mode: TaxDisplay;
+  className?: string;
+}) {
+  const lines = await amounts(money, mode);
 
   return (
     <>

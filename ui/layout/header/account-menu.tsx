@@ -1,7 +1,7 @@
+import { getT } from '~/lib/i18n/server';
 import { cacheLife } from 'next/cache';
 
 import { getSession } from '~/data/customer/session';
-import { t } from '~/lib/i18n/messages';
 
 import { AccountIcon, IconLink } from './icon-link';
 
@@ -36,10 +36,12 @@ async function getAccountState(): Promise<{ name: string; impersonated: boolean 
 }
 
 export async function AccountMenu() {
+  const t = await getT();
+
   const account = await getAccountState();
 
   if (!account) {
-    return <AccountMenuSkeleton />;
+    return <AccountMenuSkeleton label={t('Auth.signIn')} />;
   }
 
   return (
@@ -60,11 +62,19 @@ export async function AccountMenu() {
 }
 
 /**
- * What the prerendered shell contains, and what a guest keeps: a link to sign in.
+ * What the prerendered shell contains, and what a guest keeps: **a link to sign
+ * in**. Despite the name it is not a loading placeholder — it is the real
+ * signed-out affordance, which is why its label must say "Sign in" rather than
+ * anything about an account the visitor does not have.
+ *
+ * It is also used as the Suspense fallback, so it must **not** be async — a
+ * fallback that suspends is the constraint spiked in Phase 0. It therefore
+ * cannot call `getT()` and takes its label from the caller, which already has a
+ * translator.
  */
-export function AccountMenuSkeleton() {
+export function AccountMenuSkeleton({ label }: { label: string }) {
   return (
-    <IconLink href="/login" label={t('Auth.signIn')}>
+    <IconLink href="/login" label={label}>
       <AccountIcon />
     </IconLink>
   );

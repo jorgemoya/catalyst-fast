@@ -2,6 +2,8 @@ import 'server-only';
 
 import { env } from '~/lib/env';
 
+import { channelFor } from '~/lib/config/channels';
+
 import { createClient } from './client';
 import type { ClientRequest } from './client/types';
 
@@ -23,7 +25,14 @@ export const bc = createClient({
 type PublicRequest<TResult, TVariables> = Omit<
   ClientRequest<TResult, TVariables>,
   'customerAccessToken' | 'fetchOptions'
->;
+> & {
+  /**
+   * Sent as `Accept-Language`. Pass it from any cached read whose result can
+   * differ by locale — and make sure that read takes locale as an argument, so
+   * the entry is keyed by it.
+   */
+  locale?: string;
+};
 
 /**
  * The ONLY fetcher legal inside a `'use cache'` / `'use cache: remote'` body.
@@ -50,6 +59,41 @@ export async function query<TResult, TVariables>(
 ): Promise<TResult> {
   const { data } = await bc.request<TResult, TVariables>({
     ...request,
+    /*
+     * `Accept-Language` tells BigCommerce which translations to return for
+     * catalog content — product names, descriptions, category names. Catalyst
+     * sends it from `beforeRequest`; without it a Spanish storefront gets the
+     * channel's default language whatever the shopper picked.
+     *
+     * **The locale is an explicit argument, never read here.** Two reasons, and
+     * the second is the important one:
+     *
+     *  1. `next/root-params` is unusable in this module. It is reachable from
+     *     `proxy.ts` and from route handlers, and Turbopack rejects the import
+     *     outright: "'next/root-params' can only be used inside the App
+     *     Directory."
+     *  2. The header must agree with the **cache key**. A caller that passes
+     *     `locale` has it in its own signature, so its entry is keyed by it.
+     *     Reading the locale implicitly here would send a per-locale header from
+     *     a locale-blind cache entry — measured before this existed,
+     *     `/es/garden/` reused 14 of 15 entries warmed by `/en/garden/`, which
+     *     with this header would mean Spanish shoppers served English content.
+     */
+    ...(request.locale && {
+      headers: { ...request.headers, 'Accept-Language': request.locale },
+      /*
+       * **The channel comes from the same locale as the header**, so a store that
+       * gives a locale its own BigCommerce channel gets it honoured. Previously
+       * `channelFor().channelId` was defined and never used — `channels.ts`
+       * claimed changing it was all that was needed, and that claim was false.
+       *
+       * Safe for caching for exactly the reason `Accept-Language` is: the locale
+       * is an explicit argument, so the caller's cache entry is already keyed by
+       * it. Deriving the channel from ambient state instead would let one entry
+       * serve two channels.
+       */
+      channelId: channelFor(request.locale).channelId,
+    }),
     fetchOptions: { cache: 'no-store' },
   });
 
@@ -80,6 +124,17 @@ export async function mutate<TResult, TVariables extends Record<string, unknown>
 ): Promise<TResult> {
   const { data } = await bc.request<TResult, TVariables>({
     ...request,
+    /*
+     * A write must land on the same channel the shopper is reading from —
+     * otherwise, on a store where locales have separate channels, a cart is built
+     * against one catalog and priced against another.
+     *
+     * Optional, and omitting it keeps the client's configured default, which is
+     * today's behaviour on a single-channel store. Callers in a locale-aware path
+     * should pass it; `getTForAction`-style call sites already have the locale to
+     * hand via `activeLocale()`.
+     */
+    ...(request.locale && { channelId: channelFor(request.locale).channelId }),
     fetchOptions: { cache: 'no-store' },
   });
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { Dialog } from '@base-ui/react/dialog';
 import { useState, useSyncExternalStore } from 'react';
 
@@ -10,7 +12,6 @@ import {
   parseConsent,
   serializeConsent,
 } from '~/domain/consent';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * Cookie consent banner and preferences dialog.
@@ -43,27 +44,6 @@ type Selection = Record<ConsentCategory, boolean>;
 
 const ALL_GRANTED: Selection = { functionality: true, marketing: true, measurement: true };
 const NONE_GRANTED: Selection = { functionality: false, marketing: false, measurement: false };
-
-/*
- * Spelled out rather than built with `t(`Consent.${category}`)`: the translator
- * is typed against the message catalogue, so a template-literal key defeats the
- * check that a string actually exists. Written this way, deleting a message is a
- * compile error rather than a "Consent.marketing" string rendered to a shopper.
- */
-const CATEGORY_COPY: Record<ConsentCategory, { label: string; description: string }> = {
-  functionality: {
-    label: t('Consent.functionality'),
-    description: t('Consent.functionalityDescription'),
-  },
-  marketing: {
-    label: t('Consent.marketing'),
-    description: t('Consent.marketingDescription'),
-  },
-  measurement: {
-    label: t('Consent.measurement'),
-    description: t('Consent.measurementDescription'),
-  },
-};
 
 function readCookie(name: string): string | undefined {
   return document.cookie
@@ -98,6 +78,32 @@ const getConsentSnapshot = (): string => readCookie(CONSENT_COOKIE_NAME) ?? '';
 const getServerConsentSnapshot = (): string => '';
 
 export function ConsentBanner({ enabled, maxAgeDays = 365 }: Props) {
+  const t = useTranslations();
+
+  /*
+   * Inside the component, because it is translated — at module scope it would be
+   * evaluated once at import and pin every locale to the first one loaded.
+   *
+   * Still spelled out rather than built with `t(`Consent.${category}`)`: the
+   * translator is typed against the catalogue, so a template-literal key defeats
+   * the check that the string exists. Written this way, deleting a message is a
+   * compile error rather than a raw "Consent.marketing" shown to a shopper.
+   */
+  const CATEGORY_COPY: Record<ConsentCategory, { label: string; description: string }> = {
+    functionality: {
+      label: t('Consent.functionality'),
+      description: t('Consent.functionalityDescription'),
+    },
+    marketing: {
+      label: t('Consent.marketing'),
+      description: t('Consent.marketingDescription'),
+    },
+    measurement: {
+      label: t('Consent.measurement'),
+      description: t('Consent.measurementDescription'),
+    },
+  };
+
   const rawCookie = useSyncExternalStore(
     subscribeToConsent,
     getConsentSnapshot,

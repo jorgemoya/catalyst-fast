@@ -1,12 +1,14 @@
 'use client';
 
+import { useLocale, useTranslations } from 'next-intl';
+
 import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 
-import { addToCart } from '~/app/(storefront)/product/[id]/_actions/add-to-cart';
+import { addToCart } from '~/app/[locale]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
   getVariantSnapshot,
   type VariantSnapshot,
-} from '~/app/(storefront)/product/[id]/_actions/get-variant';
+} from '~/app/[locale]/(storefront)/product/[id]/_actions/get-variant';
 import {
   type CtaState,
   toBackorderDisplay,
@@ -21,7 +23,7 @@ import {
   variantSelection,
 } from '~/domain/product-options';
 import { cn } from '~/lib/cn';
-import { formatCurrency, t } from '~/lib/i18n/messages';
+import { formatCurrencyIn } from '~/lib/i18n/messages';
 import { Link } from '~/ui/primitives/link';
 
 import { OptionField } from './option-fields';
@@ -61,6 +63,8 @@ interface Props {
 type Selection = OptionSelection;
 
 export function PurchaseForm({ productId, fields, quantityLimits, initial }: Props) {
+  const t = useTranslations();
+
   const variantFields = useMemo(() => fields.filter((field) => field.variantDefining), [fields]);
   const [selection, setSelection] = useState<Selection>(() => defaultSelection(fields));
   const [snapshot, setSnapshot] = useState(initial);
@@ -220,7 +224,7 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial }: Pro
           ? t('Product.selectOptions', {
               options: missingRequired.map((field) => field.label).join(' and '),
             })
-          : ctaLabel(derived.cta?.kind, isSubmitting)}
+          : ctaLabel(derived.cta?.kind, isSubmitting, t)}
       </button>
 
       {formErrors.length > 0 && (
@@ -246,7 +250,12 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial }: Pro
  * semantics rather than a label, so this mapping — and its translations — live
  * in the UI where they belong.
  */
-function ctaLabel(kind: CtaState['kind'] | undefined, isSubmitting: boolean): string {
+function ctaLabel(
+  kind: CtaState['kind'] | undefined, isSubmitting: boolean,
+  // Passed in, not read from a hook: this is a plain helper, and calling
+  // `useTranslations(, t)` here violates the rules of hooks.
+  t: ReturnType<typeof useTranslations>,
+): string {
   if (isSubmitting) {
     return t('Product.addingToCart');
   }
@@ -279,15 +288,24 @@ const stalenessClasses = (stale: boolean) =>
   cn('transition-opacity duration-150', stale ? 'opacity-60 delay-200' : 'opacity-100 delay-0');
 
 function VariantPrice({ price, stale }: { price: VariantSnapshot['price']; stale: boolean }) {
+  const activeLocale = useLocale();
+
   if (!price) {
     return null;
   }
 
   const money = (value: { inc: number; ex: number; currencyCode: string }) =>
-    formatCurrency(price.mode === 'INC' ? value.inc : value.ex, value.currencyCode);
+    formatCurrencyIn(activeLocale, price.mode === 'INC' ? value.inc : value.ex, value.currencyCode);
 
   return (
-    <p className={cn('text-2xl font-semibold', stalenessClasses(stale))} data-testid="product-price">
+    <p
+      className={cn('text-2xl font-semibold', stalenessClasses(stale))}
+      // Hidden by CSS when a price overlay renders alongside it — see
+      // `styles/globals.css`. Without that a shopper on EUR sees both the
+      // prerendered $80.00 and the converted €77.75 at once.
+      data-price-base
+      data-testid="product-price"
+    >
       {price.type === 'range' && `${money(price.min)} – ${money(price.max)}`}
       {price.type === 'sale' && (
         <>
@@ -308,6 +326,8 @@ interface Derived {
 }
 
 function VariantAvailability({ derived, stale }: { derived: Derived; stale: boolean }) {
+  const t = useTranslations();
+
   const { stock, backorder, outOfStockMessage } = derived;
 
   return (

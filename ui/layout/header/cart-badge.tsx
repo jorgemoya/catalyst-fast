@@ -1,9 +1,9 @@
+import { getT } from '~/lib/i18n/server';
 import { cacheLife, cacheTag } from 'next/cache';
 
 import { getCartCount } from '~/data/cart';
 import { getCartId } from '~/lib/cart/session';
 import { tags } from '~/lib/cache/tags';
-import { t } from '~/lib/i18n/messages';
 
 import { CartIcon, IconLink } from './icon-link';
 
@@ -50,6 +50,8 @@ async function getBadgeCount(): Promise<number> {
 }
 
 export async function CartBadge() {
+  const t = await getT();
+
   const count = await getBadgeCount();
 
   return (
@@ -71,9 +73,14 @@ export async function CartBadge() {
  * What the prerendered shell contains: the icon, no count. A guest with an empty
  * cart sees exactly this and never sees it change, which is the common case.
  */
-export function CartBadgeSkeleton() {
+/**
+ * Suspense fallback, so it must **not** be async — a fallback that suspends is
+ * the constraint spiked in Phase 0. It therefore cannot call `getT()` and takes
+ * its label from the caller, which already has a translator.
+ */
+export function CartBadgeSkeleton({ label }: { label: string }) {
   return (
-    <IconLink href="/cart" label={t('Header.cart')}>
+    <IconLink href="/cart" label={label}>
       <CartIcon />
     </IconLink>
   );

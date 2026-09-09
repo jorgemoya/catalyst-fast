@@ -1,5 +1,5 @@
+import type { useTranslations } from 'next-intl';
 import { BigCommerceAuthError, BigCommerceGQLError } from '~/lib/bigcommerce/client';
-import { t } from '~/lib/i18n/messages';
 
 import { type CartErrorCode, isCartError } from './errors';
 
@@ -12,10 +12,16 @@ import { type CartErrorCode, isCartError } from './errors';
  * every cart action needs it and duplicating the mapping across six of them is
  * how translations drift.
  *
- * `t` here is the *static* translator, which is a pure function of the message
- * catalogue — not `next-intl/server`, which is request-scoped.
+ * The translator is **passed in** rather than imported. These strings are
+ * translated, and this module is imported by actions that already hold a
+ * request-appropriate translator — importing a module-level one here would pin
+ * the locale at import time.
  */
-export const toCartErrorMessage = (code: CartErrorCode): string => t(`Cart.errors.${code}`);
+/** next-intl's own translator type, so a `getT()` result is assignable. */
+type Translator = ReturnType<typeof useTranslations>;
+
+export const toCartErrorMessage = (t: Translator, code: CartErrorCode): string =>
+  t(`Cart.errors.${code}`);
 
 /**
  * Turns a thrown cart failure into a message, or rethrows.
@@ -35,8 +41,12 @@ export const toCartErrorMessage = (code: CartErrorCode): string => t(`Cart.error
  * auth error is a genuine fault and still throws, so a broken deploy stays
  * visible instead of being reported to every shopper as a bad coupon code.
  */
-export function toSubmissionErrorMessage(error: unknown, fallback: CartErrorCode): string {
-  return resolve(error, fallback);
+export function toSubmissionErrorMessage(
+  t: Translator,
+  error: unknown,
+  fallback: CartErrorCode,
+): string {
+  return resolve(t, error, fallback);
 }
 
 /**
@@ -54,9 +64,9 @@ export function toSubmissionErrorMessage(error: unknown, fallback: CartErrorCode
  */
 const OWN_WORDING_WINS = new Set<CartErrorCode>(['coupon-failed', 'gift-certificate-failed']);
 
-function resolve(error: unknown, fallback: CartErrorCode): string {
+function resolve(t: Translator, error: unknown, fallback: CartErrorCode): string {
   if (isCartError(error)) {
-    return toCartErrorMessage(error.code);
+    return toCartErrorMessage(t, error.code);
   }
 
   // An expired session is not a cart problem; `customerQuery` handles it by
@@ -67,12 +77,12 @@ function resolve(error: unknown, fallback: CartErrorCode): string {
 
   if (error instanceof BigCommerceGQLError) {
     if (OWN_WORDING_WINS.has(fallback)) {
-      return toCartErrorMessage(fallback);
+      return toCartErrorMessage(t, fallback);
     }
 
     const message = error.errors.find((gqlError) => gqlError.message)?.message;
 
-    return message || toCartErrorMessage(fallback);
+    return message || toCartErrorMessage(t, fallback);
   }
 
   throw error;

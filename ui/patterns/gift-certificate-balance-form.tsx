@@ -1,9 +1,11 @@
 'use client';
 
+import { useLocale, useTranslations } from 'next-intl';
+
 import { useActionState } from 'react';
 
-import { checkGiftCertificateBalance } from '~/app/(storefront)/gift-certificates/_actions/gift-certificate';
-import { formatCurrency, t } from '~/lib/i18n/messages';
+import { checkGiftCertificateBalance } from '~/app/[locale]/(storefront)/gift-certificates/_actions/gift-certificate';
+import { formatCurrencyIn } from '~/lib/i18n/messages';
 
 /**
  * Gift certificate balance lookup.
@@ -14,6 +16,9 @@ import { formatCurrency, t } from '~/lib/i18n/messages';
  * gift certificate codes are bearer instruments worth money.
  */
 export function GiftCertificateBalanceForm() {
+  const t = useTranslations();
+  const activeLocale = useLocale();
+
   const [result, action, pending] = useActionState(checkGiftCertificateBalance, null);
 
   return (
@@ -62,7 +67,7 @@ export function GiftCertificateBalanceForm() {
         >
           <dt className="font-medium">{t('GiftCertificates.balanceRemaining')}</dt>
           <dd>
-            {formatCurrency(
+            {formatCurrencyIn(activeLocale, 
               result.certificate.balance.value,
               result.certificate.balance.currencyCode,
             )}
@@ -70,7 +75,7 @@ export function GiftCertificateBalanceForm() {
 
           <dt className="font-medium">{t('GiftCertificates.originalAmount')}</dt>
           <dd>
-            {formatCurrency(result.certificate.amount.value, result.certificate.amount.currencyCode)}
+            {formatCurrencyIn(activeLocale, result.certificate.amount.value, result.certificate.amount.currencyCode)}
           </dd>
 
           <dt className="font-medium">{t('GiftCertificates.from')}</dt>

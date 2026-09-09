@@ -1,13 +1,14 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { Popover } from '@base-ui/react/popover';
 import { useActionState } from 'react';
 
 import {
   addToWishlist,
   removeWishlistItem,
-} from '~/app/(storefront)/account/wishlists/_actions/wishlist';
-import { t } from '~/lib/i18n/messages';
+} from '~/app/[locale]/(storefront)/account/wishlists/_actions/wishlist';
 import { HeartIcon } from '~/ui/primitives/heart-icon';
 
 /**
@@ -35,6 +36,8 @@ export function WishlistButton({
   wishlists: WishlistRow[];
   containing: number[];
 }) {
+  const t = useTranslations();
+
   const saved = containing.length > 0;
 
   return (

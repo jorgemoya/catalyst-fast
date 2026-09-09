@@ -1,3 +1,4 @@
+import { getT } from '~/lib/i18n/server';
 import type { ProductCard as ProductCardModel } from '~/domain/product-card';
 import { cn } from '~/lib/cn';
 import { Image } from '~/ui/primitives/image';
@@ -7,7 +8,6 @@ import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { CompareCheckbox } from './compare-controls';
 import { PriceLabel } from './price';
-import { t } from '~/lib/i18n/messages';
 
 interface Props {
   product: ProductCardModel;
@@ -32,13 +32,15 @@ interface Props {
  * cards always render as part of a list whose single query already returned
  * pricing inline — a card that fetched its own price would turn one request into N.
  */
-export function ProductCard({
+export async function ProductCard({
   product,
   priority,
   showRating = true,
   sizes,
   compareEnabled = false,
 }: Props) {
+  const t = await getT();
+
   return (
     // `relative` is load-bearing, not cosmetic: the title link below stretches
     // itself with `after:absolute after:inset-0`, which resolves against the

@@ -2,8 +2,11 @@ import { cacheLife, cacheTag } from 'next/cache';
 
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { query } from '~/lib/bigcommerce';
+import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 import { type ProductCard, toProductCard } from '~/domain/product-card';
 import { ProductCardFragment } from '~/lib/bigcommerce/fragments/product-card';
 
@@ -52,7 +55,8 @@ const NewestProductsQuery = graphql(
   [ProductCardFragment],
 );
 
-export async function getFeaturedProducts(first = 8): Promise<ProductCard[]> {
+/** `currency` is explicit so the entry is keyed by it and shared per currency. */
+export async function getFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
   'use cache';
   cacheLife('product');
   cacheTag(tags.products);
@@ -61,7 +65,9 @@ export async function getFeaturedProducts(first = 8): Promise<ProductCard[]> {
   // settings resolves from its own single shared entry rather than being
   // refetched per list.
   const [data, settings] = await Promise.all([
-    query({ document: FeaturedProductsQuery, variables: { currencyCode: null, first } }),
+    query({ document: FeaturedProductsQuery, variables: { currencyCode: toCurrencyCode(currency), first },
+    locale: await activeLocale(),
+  }),
     getStoreSettings(),
   ]);
 
@@ -70,13 +76,15 @@ export async function getFeaturedProducts(first = 8): Promise<ProductCard[]> {
   );
 }
 
-export async function getNewestProducts(first = 8): Promise<ProductCard[]> {
+export async function getNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
   'use cache';
   cacheLife('product');
   cacheTag(tags.products);
 
   const [data, settings] = await Promise.all([
-    query({ document: NewestProductsQuery, variables: { currencyCode: null, first } }),
+    query({ document: NewestProductsQuery, variables: { currencyCode: toCurrencyCode(currency), first },
+    locale: await activeLocale(),
+  }),
     getStoreSettings(),
   ]);
 

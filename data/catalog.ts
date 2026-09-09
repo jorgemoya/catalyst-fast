@@ -8,6 +8,8 @@ import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
+
+import { activeLocale } from './locale';
 import { buildConfig } from '~/lib/config';
 import { env } from '~/lib/env';
 
@@ -131,7 +133,9 @@ export async function getCategory(entityId: number): Promise<CategoryPage | null
   cacheLife('product');
   cacheTag(tags.category(entityId), tags.categories);
 
-  const data = await query({ document: CategoryQuery, variables: { entityId } });
+  const data = await query({ document: CategoryQuery, variables: { entityId },
+    locale: await activeLocale(),
+  });
   const category = data.site.category;
 
   if (!category) {
@@ -168,7 +172,9 @@ export async function getBrand(entityId: number): Promise<BrandPage | null> {
   cacheLife('product');
   cacheTag(tags.brand(entityId), tags.brands);
 
-  const data = await query({ document: BrandQuery, variables: { entityId } });
+  const data = await query({ document: BrandQuery, variables: { entityId },
+    locale: await activeLocale(),
+  });
   const brand = data.site.brand;
 
   if (!brand) {
@@ -215,7 +221,8 @@ export async function getCategoryIds(limit = STATIC_PARAMS_LIMIT): Promise<numbe
   cacheLife('navigation');
   cacheTag(tags.categories);
 
-  const data = await query({ document: CategoryIdsQuery });
+  const data = await query({ document: CategoryIdsQuery,
+  });
 
   // Breadth-first: top-level categories carry the most traffic, so they are the
   // ones worth prerendering when the limit bites.
@@ -247,7 +254,7 @@ export async function getBrandIds(limit = STATIC_PARAMS_LIMIT): Promise<number[]
     const data: ResultOf<typeof BrandIdsQuery> = await query({
       document: BrandIdsQuery,
       variables: { first: Math.min(BRANDS_MAX_PAGE_SIZE, limit - ids.length), after },
-    });
+  });
 
     ids.push(...removeEdgesAndNodes(data.site.brands).map((brand) => brand.entityId));
 

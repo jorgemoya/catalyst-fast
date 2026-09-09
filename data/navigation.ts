@@ -5,6 +5,8 @@ import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
 
+import { activeLocale } from './locale';
+
 /**
  * Navigation data, split by depth and by branch.
  *
@@ -135,7 +137,9 @@ export async function getTopLevelCategories(): Promise<Array<NavLink & { id: num
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.categories);
 
-  const data = await query({ document: TopLevelCategoriesQuery });
+  const data = await query({ document: TopLevelCategoriesQuery,
+    locale: await activeLocale(),
+  });
 
   return data.site.categoryTree.map((category) => ({
     id: category.entityId,
@@ -154,7 +158,9 @@ export async function getCategoryBranch(rootEntityId: number): Promise<CategoryN
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.category(rootEntityId), tags.categories);
 
-  const data = await query({ document: CategoryBranchQuery, variables: { rootEntityId } });
+  const data = await query({ document: CategoryBranchQuery, variables: { rootEntityId },
+    locale: await activeLocale(),
+  });
   const root = data.site.categoryTree[0];
 
   if (!root) {
@@ -180,7 +186,9 @@ export async function getSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLin
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.brands, tags.content);
 
-  const data = await query({ document: SiteLinksQuery, variables: { first: NAV_LIMITS.footer } });
+  const data = await query({ document: SiteLinksQuery, variables: { first: NAV_LIMITS.footer },
+    locale: await activeLocale(),
+  });
 
   return {
     brands: removeEdgesAndNodes(data.site.brands).map((brand) => ({

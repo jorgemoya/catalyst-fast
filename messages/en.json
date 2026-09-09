@@ -17,7 +17,9 @@
     "menu": "Menu",
     "shopAllCategory": "Shop all {category}",
     "cartWithCount": "{count, plural, one {Cart, # item} other {Cart, # items}}",
-    "closeSearch": "Close search"
+    "closeSearch": "Close search",
+    "currency": "Currency",
+    "language": "Language"
   },
   "Footer": {
     "shop": "Shop",

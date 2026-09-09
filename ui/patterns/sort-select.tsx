@@ -1,10 +1,11 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
 
 import { SORT_OPTIONS } from '~/domain/listing-params';
-import { t } from '~/lib/i18n/messages';
 
 /**
  * The one client island on the listing page.
@@ -18,6 +19,8 @@ import { t } from '~/lib/i18n/messages';
  * which is what lets the surrounding page keep its static shell.
  */
 export function SortSelect({ defaultSort = 'featured' }: { defaultSort?: string }) {
+  const t = useTranslations();
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();

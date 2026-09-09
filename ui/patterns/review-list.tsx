@@ -1,10 +1,12 @@
 'use client';
 
+import { useLocale, useTranslations } from 'next-intl';
+
 import { useState, useTransition } from 'react';
 
-import { loadMoreReviews } from '~/app/(storefront)/product/[id]/_actions/load-reviews';
+import { loadMoreReviews } from '~/app/[locale]/(storefront)/product/[id]/_actions/load-reviews';
 import type { Review } from '~/data/product';
-import { formatDate, t } from '~/lib/i18n/messages';
+import { formatDateIn } from '~/lib/i18n/messages';
 import { Rating } from '~/ui/primitives/rating';
 
 /**
@@ -28,6 +30,9 @@ export function ReviewList({
   initialHasNextPage: boolean;
   initialCursor: string | null;
 }) {
+  const t = useTranslations();
+  const activeLocale = useLocale();
+
   const [reviews, setReviews] = useState(initialReviews);
   const [cursor, setCursor] = useState(initialCursor);
   const [hasNextPage, setHasNextPage] = useState(initialHasNextPage);
@@ -45,7 +50,7 @@ export function ReviewList({
             <Rating rating={review.rating} />
             <h3 className="mt-2 text-sm font-semibold">{review.title}</h3>
             <p className="mt-1 text-xs text-muted">
-              {review.author} · {formatDate(review.createdAt)}
+              {review.author} · {formatDateIn(activeLocale, review.createdAt)}
             </p>
             <p className="mt-3 max-w-prose text-sm text-muted">{review.text}</p>
           </li>
