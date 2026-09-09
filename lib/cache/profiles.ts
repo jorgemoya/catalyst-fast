@@ -36,6 +36,26 @@ export const MIN_PRERENDERABLE_EXPIRE = 300;
 export const MIN_SHELL_STALE = 300;
 export const MIN_PREFETCHABLE_STALE = 30;
 
+/**
+ * Profiles whose data belongs in the **App Shell** — the prefetch payload a
+ * `<Link>` fetches ahead of a click. Membership requires `stale >= 300`, so this
+ * list is what `assertProfileFloors` checks that floor against.
+ *
+ * The three below it are deliberately outside the shell: they are either
+ * request-shaped (`cart`), high-cardinality (`search`), or too volatile to bake
+ * into an artifact reused for minutes (`inventory`).
+ */
+export const SHELL_PROFILES = [
+  'settings',
+  'navigation',
+  'product',
+  'content',
+  'reviews',
+  'route',
+  'price',
+  'listing',
+] as const;
+
 export const cacheProfiles = {
   // ── In the static shell (stale >= MIN_SHELL_STALE) ──────────────────────────
   /** Site settings, currencies, tax display, inventory display settings. */
@@ -75,9 +95,13 @@ export const cacheProfiles = {
 /**
  * Guards the floors above at module load, so a bad edit fails fast in `next.config.ts`
  * rather than silently dropping a route out of the static shell months later.
+ *
+ * Takes the profiles as an argument, defaulted to the real ones, purely so
+ * `profiles.spec.ts` can prove each branch actually throws. A guard nobody has
+ * watched fire is indistinguishable from a guard that does not work.
  */
-function assertProfileFloors(): void {
-  for (const [name, profile] of Object.entries(cacheProfiles)) {
+export function assertProfileFloors(profiles: Record<string, CacheProfile> = cacheProfiles): void {
+  for (const [name, profile] of Object.entries(profiles)) {
     if (profile.expire < MIN_PRERENDERABLE_EXPIRE) {
       throw new Error(
         `cacheLife profile "${name}" has expire=${profile.expire}, below MIN_PRERENDERABLE_EXPIRE ` +
@@ -89,6 +113,14 @@ function assertProfileFloors(): void {
       throw new Error(
         `cacheLife profile "${name}" has stale=${profile.stale}, below MIN_PREFETCHABLE_STALE ` +
           `(${MIN_PREFETCHABLE_STALE}). It would drop out of prefetches.`,
+      );
+    }
+
+    if ((SHELL_PROFILES as readonly string[]).includes(name) && profile.stale < MIN_SHELL_STALE) {
+      throw new Error(
+        `cacheLife profile "${name}" is listed in SHELL_PROFILES but has stale=${profile.stale}, ` +
+          `below MIN_SHELL_STALE (${MIN_SHELL_STALE}). Its data would silently drop out of the ` +
+          `App Shell — prefetched links would render a skeleton instead of content.`,
       );
     }
 
