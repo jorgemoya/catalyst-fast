@@ -10,6 +10,7 @@ import { Prose } from '~/ui/patterns/prose';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { ContactForm } from './_components/contact-form';
+import { getRecaptchaSettings } from '~/data/recaptcha';
 
 /**
  * A merchant's contact page: WYSIWYG body plus a form whose optional fields the
@@ -61,7 +62,11 @@ async function ContactContent({ params }: Props) {
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">{page.name}</h1>
       {page.body && <Prose className="mt-6" html={page.body} />}
 
-      <ContactForm fields={toContactFields(page.contactFields)} nodeId={id} />
+      <ContactForm
+        fields={toContactFields(page.contactFields)}
+        nodeId={id}
+        siteKey={(await getRecaptchaSettings())?.siteKey ?? null}
+      />
     </article>
   );
 }

@@ -29,7 +29,7 @@ const RATINGS = Array.from(
   (_, index) => MIN_RATING + index,
 );
 
-export function ReviewForm({ productId }: { productId: number }) {
+export function ReviewForm({ productId, siteKey }: { productId: number; siteKey: string | null }) {
   const t = useTranslations();
 
   /*
@@ -155,7 +155,7 @@ export function ReviewForm({ productId }: { productId: number }) {
         ))}
       </div>
 
-      <RecaptchaField action="submit_review" name={fields.recaptchaToken.name} />
+      <RecaptchaField siteKey={siteKey} />
 
       <div className="flex items-center gap-2">
         <button
@@ -174,8 +174,6 @@ export function ReviewForm({ productId }: { productId: number }) {
         </button>
       </div>
 
-      {/* Google requires this attribution wherever the v3 badge is hidden. */}
-      <p className="text-xs text-muted">{t('Product.reviewRecaptchaNotice')}</p>
     </form>
   );
 }

@@ -9,7 +9,7 @@ import { RecaptchaField } from '~/ui/patterns/recaptcha-field';
 
 import { register } from '../../_actions/register';
 
-export function RegisterForm() {
+export function RegisterForm({ siteKey }: { siteKey: string | null }) {
   const t = useTranslations();
 
   const [result, formAction, isPending] = useActionState(register, null);
@@ -37,7 +37,7 @@ export function RegisterForm() {
 
       {/* Renders nothing when no site key is configured, so an install without
           reCAPTCHA keeps working. */}
-      <RecaptchaField action="register" />
+      <RecaptchaField siteKey={siteKey} />
 
       <button
         className="h-11 self-start rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"

@@ -9,7 +9,7 @@ import { reviewSchema } from '~/domain/review';
 import { mutate } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
-import { verifyRecaptcha } from '~/lib/recaptcha';
+import { readRecaptchaToken } from '~/lib/recaptcha';
 
 /**
  * Review submission.
@@ -26,9 +26,9 @@ import { verifyRecaptcha } from '~/lib/recaptcha';
  */
 
 const AddProductReviewMutation = graphql(`
-  mutation AddProductReview($input: AddProductReviewInput!) {
+  mutation AddProductReview($input: AddProductReviewInput!, $reCaptchaV2: ReCaptchaV2Input) {
     catalog {
-      addProductReview(input: $input) {
+      addProductReview(input: $input, reCaptchaV2: $reCaptchaV2) {
         errors {
           __typename
           ... on Error {
@@ -107,9 +107,9 @@ export async function submitReview(
    * action name is bound into the token, so a token minted on a different form
    * cannot be replayed here.
    */
-  const human = await verifyRecaptcha(submission.value.recaptchaToken, 'submit_review');
+  const recaptcha = await readRecaptchaToken(formData);
 
-  if (!human) {
+  if (!recaptcha.ok) {
     return formError(t('Product.reviewBotCheckFailed'));
   }
 
@@ -123,6 +123,12 @@ export async function submitReview(
           productEntityId: productId,
           review: { author, email, title, text, rating },
         },
+        /*
+         * Forwarded, not verified here: BigCommerce holds the secret and
+         * validates the token itself. `undefined` when the store has reCAPTCHA
+         * off — the argument is optional and an empty token is rejected.
+         */
+        reCaptchaV2: recaptcha.reCaptchaV2,
       },
     });
 

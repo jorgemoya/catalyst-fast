@@ -1,99 +1,52 @@
 import 'server-only';
 
-/**
- * reCAPTCHA v3 verification.
- *
- * Optional throughout: a storefront with no reCAPTCHA keys configured must work
- * normally, so `isRecaptchaConfigured` gates the widget client-side and
- * `verifyRecaptcha` returns `true` when unconfigured. The alternative — failing
- * closed — would mean an unconfigured install silently rejects every review and
- * contact-form submission with a validation error that points nowhere.
- *
- * The site key is public by design and must be `NEXT_PUBLIC_`; the secret key is
- * server-only and must never be. Mixing those up is the classic reCAPTCHA
- * mistake, so they are named and read separately here rather than through one
- * helper.
- */
-
-const VERIFY_ENDPOINT = 'https://www.google.com/recaptcha/api/siteverify';
+import { getRecaptchaSettings } from '~/data/recaptcha';
 
 /**
- * v3 returns a score from 0.0 (almost certainly a bot) to 1.0. Google's own
- * suggested starting point is 0.5, and it is the right default: the failure
- * mode of a high threshold is silently rejecting real customers' reviews, which
- * nobody notices because the customer just gives up.
+ * reCAPTCHA token handling for Server Actions.
+ *
+ * **Nothing here talks to Google.** BigCommerce holds the secret and verifies
+ * the token itself when it is passed as `reCaptchaV2` on the mutation, so the
+ * storefront's only jobs are to know whether reCAPTCHA is on and to refuse a
+ * submission that should have carried a token and did not.
+ *
+ * That refusal matters: without it, a bot that simply omits the field would sail
+ * past, because BigCommerce treats a missing `reCaptchaV2` as "this store has no
+ * reCAPTCHA" rather than as a failure.
  */
-const DEFAULT_THRESHOLD = 0.5;
 
-export const isRecaptchaConfigured = Boolean(
-  process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && process.env.RECAPTCHA_SECRET_KEY,
-);
+/*
+ * The field name Google's v2 widget creates for its token. Not exported: the
+ * widget writes it and this module reads it, so nothing in between needs to
+ * know — and an exported constant nothing imports is the pattern that has
+ * hidden four unwired features in this codebase already.
+ */
+const RECAPTCHA_TOKEN_FIELD = 'g-recaptcha-response';
 
-interface VerifyResponse {
-  success: boolean;
-  score?: number;
-  action?: string;
-  'error-codes'?: string[];
-}
+type TokenCheck =
+  | { ok: true; reCaptchaV2: { token: string } | undefined }
+  | { ok: false; reason: 'missing' };
 
 /**
- * Verifies a token from the client widget.
+ * Reads the token from a submission and decides what to forward.
  *
- * `expectedAction` is checked when present. Without it a token minted on a
- * cheap, unprotected form could be replayed against an expensive one — Google
- * binds the action name into the token precisely so this is detectable, and
- * skipping the check throws that protection away.
+ * Returns `reCaptchaV2: undefined` when the store has reCAPTCHA switched off —
+ * the argument is optional, and sending an empty token to a store that is not
+ * expecting one is rejected outright.
  */
-export async function verifyRecaptcha(
-  token: string | undefined | null,
-  expectedAction?: string,
-  threshold = DEFAULT_THRESHOLD,
-): Promise<boolean> {
-  if (!isRecaptchaConfigured) {
-    return true;
+export async function readRecaptchaToken(formData: FormData): Promise<TokenCheck> {
+  const settings = await getRecaptchaSettings();
+
+  if (!settings) {
+    return { ok: true, reCaptchaV2: undefined };
   }
+
+  const raw = formData.get(RECAPTCHA_TOKEN_FIELD);
+  const token = typeof raw === 'string' ? raw.trim() : '';
 
   if (!token) {
-    return false;
+    return { ok: false, reason: 'missing' };
   }
 
-  try {
-    const response = await fetch(VERIFY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        secret: process.env.RECAPTCHA_SECRET_KEY ?? '',
-        response: token,
-      }),
-      // Never cache a verification: tokens are single-use and short-lived.
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return false;
-    }
-
-    const result = (await response.json()) as VerifyResponse;
-
-    if (!result.success) {
-      return false;
-    }
-
-    if (expectedAction && result.action && result.action !== expectedAction) {
-      return false;
-    }
-
-    return (result.score ?? 0) >= threshold;
-  } catch {
-    /*
-     * Google unreachable. Fails **open**.
-     *
-     * A deliberate choice: reCAPTCHA is spam mitigation, not authentication, and
-     * treating a third-party outage as "every customer is a bot" turns Google
-     * having a bad day into this storefront being unable to accept reviews or
-     * contact messages. The downside is a spam window during an outage, which is
-     * recoverable; the alternative is not.
-     */
-    return true;
-  }
+  return { ok: true, reCaptchaV2: { token } };
 }

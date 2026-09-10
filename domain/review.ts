@@ -77,8 +77,6 @@ export function reviewSchema(messages: ReviewMessages) {
       .min(MIN_RATING, messages.ratingRequired)
       .max(MAX_RATING, messages.ratingRequired),
 
-    // Present only when reCAPTCHA is configured; verified in the action.
-    recaptchaToken: z.string().optional(),
   });
 }
 

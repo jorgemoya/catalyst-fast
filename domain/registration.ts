@@ -42,9 +42,6 @@ export const registerSchema = (m: RegistrationMessages) =>
     confirmPassword: z.string().min(1, m.required),
     company: z.string().trim().max(100).optional(),
     phone: z.string().trim().max(50).optional(),
-
-    // Present only when reCAPTCHA is configured; verified in the action.
-    recaptchaToken: z.string().optional(),
   })
   // Reported against the confirmation field, not the form, so it appears next to
   // the input the shopper needs to fix.

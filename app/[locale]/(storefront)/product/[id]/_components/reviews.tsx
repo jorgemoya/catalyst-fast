@@ -4,6 +4,7 @@ import { getStoreSettings } from '~/data/settings';
 import { ReviewForm } from '~/ui/patterns/review-form';
 import { ReviewList } from '~/ui/patterns/review-list';
 import { Skeleton } from '~/ui/primitives/skeleton';
+import { getRecaptchaSettings } from '~/data/recaptcha';
 
 /**
  * Product reviews, read-only.
@@ -41,7 +42,7 @@ export async function ProductReviews({ productId }: { productId: number }) {
       />
 
       <div className="mt-8">
-        <ReviewForm productId={productId} />
+        <ReviewForm productId={productId} siteKey={(await getRecaptchaSettings())?.siteKey ?? null} />
       </div>
     </section>
   );

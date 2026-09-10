@@ -1,83 +1,90 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import Script from 'next/script';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
- * reCAPTCHA v3 hidden field.
+ * reCAPTCHA v2 widget.
  *
- * v3 has no visible challenge — it scores the session in the background and the
- * form submits a token. So this renders a hidden input rather than a widget, and
- * the only visible obligation is Google's required attribution notice, which the
- * consuming form is responsible for placing.
+ * **v2, not v3, because that is what BigCommerce implements.** Its API takes
+ * `ReCaptchaV2Input` and the token field is `g-recaptcha-response`; a v3 token
+ * would not validate against it. The previous version here was v3 — invisible
+ * and score-based — which looked more elegant and could never have worked.
  *
- * Renders nothing at all when no site key is configured, which keeps every form
- * that uses it working on an install that never set reCAPTCHA up.
+ * The site key is a **prop**, resolved server-side from
+ * `site.settings.reCaptcha`, so the merchant's control-panel setting is the only
+ * place reCAPTCHA is configured. There is deliberately no env var: the earlier
+ * implementation needed one, which meant switching reCAPTCHA on in BigCommerce
+ * did nothing until someone also edited the environment and redeployed.
+ *
+ * Renders nothing when `siteKey` is absent, so a store with reCAPTCHA off is
+ * unaffected — and the required attribution notice lives inside that guard, so
+ * it can never claim protection the store does not have.
  */
-declare global {
-  interface Window {
-    grecaptcha?: {
-      ready: (callback: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-    };
-  }
-}
-
-const SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-
-export function RecaptchaField({ action, name = 'recaptchaToken' }: { action: string; name?: string }) {
-  const [token, setToken] = useState('');
+export function RecaptchaField({ siteKey }: { siteKey: string | null }) {
+  const t = useTranslations();
+  const container = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!SITE_KEY) {
+    if (!siteKey || !ready || !container.current) {
       return;
     }
 
-    let cancelled = false;
-
     /*
-     * v3 tokens expire after two minutes. Minting one on mount and leaving it
-     * there means any form a shopper spends real time on — writing a review, for
-     * instance, which is the main consumer here — submits an expired token and
-     * fails verification. So it refreshes on an interval comfortably inside the
-     * expiry window.
+     * Explicit render rather than the `g-recaptcha` auto-render class: the
+     * widget mounts inside a React tree that may re-render, and auto-render
+     * would attach a second widget to the same node on the next pass. The
+     * `data-rendered` marker makes that idempotent.
      */
-    const mint = (): void => {
-      window.grecaptcha?.ready(() => {
-        window.grecaptcha
-          ?.execute(SITE_KEY, { action })
-          .then((value) => {
-            if (!cancelled) {
-              setToken(value);
-            }
-          })
-          .catch(() => {
-            // Leave the token empty; the server decides what to do about it.
-          });
-      });
-    };
+    if (container.current.dataset.rendered === 'true') {
+      return;
+    }
 
-    mint();
+    window.grecaptcha?.ready(() => {
+      if (container.current && container.current.dataset.rendered !== 'true') {
+        container.current.dataset.rendered = 'true';
+        window.grecaptcha?.render(container.current, { sitekey: siteKey });
+      }
+    });
+  }, [siteKey, ready]);
 
-    const interval = setInterval(mint, 90_000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [action]);
-
-  if (!SITE_KEY) {
+  if (!siteKey) {
     return null;
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-2">
       <Script
-        src={`https://www.google.com/recaptcha/api.js?render=${SITE_KEY}`}
+        onReady={() => setReady(true)}
+        src="https://www.google.com/recaptcha/api.js?render=explicit"
         strategy="lazyOnload"
       />
-      <input name={name} type="hidden" value={token} />
-    </>
+
+      {/*
+        The widget writes the token into a `g-recaptcha-response` textarea it
+        creates itself, which is what the form submits — so there is no hidden
+        input of ours to keep in sync.
+      */}
+      <div ref={container} />
+
+      {/*
+        Google requires attribution wherever the badge is hidden. It lives here
+        rather than in each form because the previous contract — "the consuming
+        form is responsible for placing it" — was forgotten by two of the three
+        forms within an hour of being written.
+      */}
+      <p className="text-xs text-muted">{t('Common.recaptchaNotice')}</p>
+    </div>
   );
+}
+
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (callback: () => void) => void;
+      render: (container: HTMLElement, options: { sitekey: string }) => number;
+    };
+  }
 }

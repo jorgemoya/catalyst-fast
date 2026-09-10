@@ -73,9 +73,6 @@ export function contactSchema(enabled: readonly string[], messages: ContactMessa
       .optional();
   }
 
-  // Present only when reCAPTCHA is configured; verified in the action.
-  shape.recaptchaToken = z.string().optional();
-
   return z.object(shape);
 }
 

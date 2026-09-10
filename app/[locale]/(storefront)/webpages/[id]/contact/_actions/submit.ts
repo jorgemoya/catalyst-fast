@@ -4,7 +4,7 @@ import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 
-import { verifyRecaptcha } from '~/lib/recaptcha';
+import { readRecaptchaToken } from '~/lib/recaptcha';
 
 import { getWebpage } from '~/data/content';
 import { contactSchema, type ContactMessages, toContactSubmission } from '~/domain/contact';
@@ -30,8 +30,8 @@ import { graphql } from '~/lib/bigcommerce/graphql';
  */
 
 const SubmitContactUsMutation = graphql(`
-  mutation SubmitContactUs($input: SubmitContactUsInput!) {
-    submitContactUs(input: $input) {
+  mutation SubmitContactUs($input: SubmitContactUsInput!, $reCaptchaV2: ReCaptchaV2Input) {
+    submitContactUs(input: $input, reCaptchaV2: $reCaptchaV2) {
       __typename
       errors {
         __typename
@@ -78,9 +78,9 @@ export async function submitContactForm(
     return submission.reply();
   }
 
-  const human = await verifyRecaptcha(submission.value.recaptchaToken, 'contact');
+  const recaptcha = await readRecaptchaToken(formData);
 
-  if (!human) {
+  if (!recaptcha.ok) {
     return formError(t('Contact.botCheckFailed'));
   }
 
@@ -94,6 +94,12 @@ export async function submitContactForm(
           pageEntityId: page.id,
           data: toContactSubmission(submission.value),
         },
+        /*
+         * Forwarded, not verified here: BigCommerce holds the secret and
+         * validates the token itself. `undefined` when the store has reCAPTCHA
+         * off — the argument is optional and an empty token is rejected.
+         */
+        reCaptchaV2: recaptcha.reCaptchaV2,
       },
     });
 

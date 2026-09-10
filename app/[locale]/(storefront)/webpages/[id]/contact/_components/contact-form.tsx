@@ -21,7 +21,15 @@ import { submitContactForm } from '../_actions/submit';
 const inputClass =
   'h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm';
 
-export function ContactForm({ nodeId, fields }: { nodeId: string; fields: ContactField[] }) {
+export function ContactForm({
+  nodeId,
+  fields,
+  siteKey,
+}: {
+  nodeId: string;
+  fields: ContactField[];
+  siteKey: string | null;
+}) {
   const t = useTranslations();
 
   const [result, formAction, isPending] = useActionState(
@@ -85,7 +93,7 @@ export function ContactForm({ nodeId, fields }: { nodeId: string; fields: Contac
 
       {/* Renders nothing when no site key is configured, so an install without
           reCAPTCHA keeps working. */}
-      <RecaptchaField action="contact" />
+      <RecaptchaField siteKey={siteKey} />
 
       {formErrors.length > 0 && (
         <p className="text-sm text-error" role="alert">

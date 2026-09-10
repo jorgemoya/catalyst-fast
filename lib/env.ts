@@ -103,8 +103,6 @@ const envSchema = z.object({
    * `verifyRecaptcha` returns true so an unconfigured install still accepts
    * reviews and contact messages.
    */
-  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().optional(),
-  RECAPTCHA_SECRET_KEY: z.string().optional(),
 
   /**
    * Opt-in `/admin` shortcut to the BigCommerce control panel. Off by default:

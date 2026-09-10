@@ -6,7 +6,8 @@
     "shopAll": "Ver todo",
     "allCategories": "Todas las categorías",
     "noImage": "Sin imagen",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "recaptchaNotice": "Este sitio está protegido por reCAPTCHA y se aplican la Política de Privacidad y los Términos de Servicio de Google."
   },
   "Header": {
     "mainNav": "Principal",
@@ -102,7 +103,6 @@
     "reviewProductMissing": "No se ha encontrado este producto.",
     "reviewFailed": "No se ha podido enviar tu reseña. Inténtalo de nuevo.",
     "reviewBotCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo.",
-    "reviewRecaptchaNotice": "Este sitio está protegido por reCAPTCHA y se aplican la Política de Privacidad y los Términos de Servicio de Google.",
     "loadMoreImages": "Ver más imágenes",
     "loadingImages": "Cargando…"
   },

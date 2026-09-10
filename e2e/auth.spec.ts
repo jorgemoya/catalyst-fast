@@ -90,3 +90,38 @@ test.describe('personalized pricing', () => {
     await expect(page.getByTestId('personalized-price')).toHaveCount(0);
   });
 });
+
+/**
+ * reCAPTCHA.
+ *
+ * Configured **entirely in BigCommerce** — `site.settings.reCaptcha` supplies
+ * the site key and the on/off switch, and BigCommerce verifies the token it is
+ * handed as `reCaptchaV2`. There is no env var and no call to Google from here.
+ *
+ * That replaced an env-driven v3 implementation which could not have worked:
+ * BigCommerce's API is v2 (`ReCaptchaV2Input`, `g-recaptcha-response`), so a v3
+ * token would never have validated. It also meant this store — which had
+ * reCAPTCHA switched **on** the whole time — was running with every form
+ * unprotected, because the storefront was looking in the wrong place.
+ */
+test.describe('reCAPTCHA', () => {
+  test('renders the widget and its attribution on registration', async ({ page }) => {
+    await page.goto('/register/');
+
+    const notice = page.getByText('This site is protected by reCAPTCHA');
+
+    // A merchant may switch it off; that is a pass, not a failure.
+    if ((await notice.count()) === 0) {
+      test.skip(true, 'reCAPTCHA is disabled for this store');
+    }
+
+    await expect(notice).toBeVisible();
+
+    // The v2 widget mounts a Google-hosted iframe. Its presence is what proves
+    // the site key reached the client — the notice alone would render for any
+    // non-null key, including a wrong one.
+    await expect(page.frameLocator('iframe[src*="recaptcha"]').locator('body')).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+});

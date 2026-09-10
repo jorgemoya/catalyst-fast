@@ -6,7 +6,8 @@
     "shopAll": "Shop all",
     "allCategories": "All categories",
     "noImage": "No image",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "recaptchaNotice": "This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply."
   },
   "Header": {
     "mainNav": "Main",
@@ -102,7 +103,6 @@
     "reviewProductMissing": "This product could not be found.",
     "reviewFailed": "Your review could not be submitted. Please try again.",
     "reviewBotCheckFailed": "We could not verify that request. Please try again.",
-    "reviewRecaptchaNotice": "This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.",
     "loadMoreImages": "Load more images",
     "loadingImages": "Loading…"
   },

@@ -4,7 +4,7 @@ import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 
-import { verifyRecaptcha } from '~/lib/recaptcha';
+import { readRecaptchaToken } from '~/lib/recaptcha';
 import { redirect } from 'next/navigation';
 
 import { registerSchema } from '~/domain/registration';
@@ -33,9 +33,9 @@ import { getCartId } from '~/lib/cart/session';
  */
 
 const RegisterMutation = graphql(`
-  mutation RegisterCustomer($input: RegisterCustomerInput!) {
+  mutation RegisterCustomer($input: RegisterCustomerInput!, $reCaptchaV2: ReCaptchaV2Input) {
     customer {
-      registerCustomer(input: $input) {
+      registerCustomer(input: $input, reCaptchaV2: $reCaptchaV2) {
         customer {
           entityId
         }
@@ -76,9 +76,9 @@ export async function register(
     return submission.reply();
   }
 
-  const human = await verifyRecaptcha(submission.value.recaptchaToken, 'register');
+  const recaptcha = await readRecaptchaToken(formData);
 
-  if (!human) {
+  if (!recaptcha.ok) {
     return formError(t('Auth.botCheckFailed'));
   }
 
@@ -96,6 +96,12 @@ export async function register(
           ...(company && { company }),
           ...(phone && { phone }),
         },
+        /*
+         * Forwarded, not verified here: BigCommerce holds the secret and
+         * validates the token itself. `undefined` when the store has reCAPTCHA
+         * off — the argument is optional and an empty token is rejected.
+         */
+        reCaptchaV2: recaptcha.reCaptchaV2,
       },
     });
 
