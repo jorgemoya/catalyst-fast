@@ -125,3 +125,47 @@ test.describe('reCAPTCHA', () => {
     });
   });
 });
+
+/**
+ * Merchant-configured custom fields.
+ *
+ * These come from `site.settings.formFields`, and the forms used to render only
+ * the hand-written built-ins — so a store with extra fields configured collected
+ * nothing for them, with no error anywhere.
+ *
+ * **This store has none on the *customer* form**, so this skips here and the
+ * real coverage is on the address form (`signed-in.spec.ts`), which has two.
+ * Kept anyway: it is the assertion that fails the day a merchant adds a customer
+ * field, which is exactly when the old code would have silently ignored it.
+ */
+test.describe('custom form fields', () => {
+  test("registration renders the store's own customer fields", async ({ page }) => {
+    await page.goto('/register/');
+
+    const custom = page.locator('[name^="custom_"]');
+
+    if ((await custom.count()) === 0) {
+      test.skip(true, 'store has no custom customer fields configured');
+    }
+
+    await expect(custom.first()).toBeVisible();
+
+    /*
+     * Every custom control must be labelled — by a `<label for>`, an enclosing
+     * `<label>`, or a `<fieldset>` legend for a checkbox group. An unlabelled one
+     * is unusable with a screen reader and indistinguishable from the next.
+     */
+    const unlabelled = await page.evaluate(() => {
+      const controls = [...document.querySelectorAll('[name^="custom_"]')];
+
+      return controls.filter((el) => {
+        const name = el.getAttribute('name') ?? '';
+        const forLabel = document.querySelector(`label[for="${name}"]`);
+
+        return !forLabel && !el.closest('label') && !el.closest('fieldset');
+      }).length;
+    });
+
+    expect(unlabelled).toBe(0);
+  });
+});

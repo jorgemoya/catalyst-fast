@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { type CustomFormField, customFieldsSchema } from './form-fields';
+
 /**
  * Copy injected by the caller, matching the idiom in `cart-line`, `review` and
  * `contact`: `domain/` builds the schema and knows the rules, never the words.
@@ -9,6 +11,8 @@ import { z } from 'zod';
 export interface AddressMessages {
   required: string;
   countryCodeLength: string;
+  tooLong: (max: number) => string;
+  invalidNumber: string;
 }
 
 
@@ -31,7 +35,7 @@ export interface AddressMessages {
  * evaluated once at import — pinning every locale to whichever one loaded first
  * and showing English errors to a Spanish shopper.
  */
-export const addressSchema = (m: AddressMessages) =>
+export const addressSchema = (m: AddressMessages, customFields: readonly CustomFormField[] = []) =>
   z.object({
   addressEntityId: z.coerce.number().int().positive().optional(),
   firstName: z.string().trim().min(1, m.required).max(50),
@@ -48,4 +52,15 @@ export const addressSchema = (m: AddressMessages) =>
     .length(2, m.countryCodeLength)
     .transform((value) => value.toUpperCase()),
   phone: z.string().trim().max(50).optional(),
+
+  /*
+   * Merchant-configured extras. This store has two — a "Residence Type"
+   * picklist and "Delivery Notes" — that the hand-written schema silently
+   * dropped, which is the whole reason these are read from the store.
+   */
+  ...customFieldsSchema(customFields, {
+    required: m.required,
+    tooLong: m.tooLong,
+    invalidNumber: m.invalidNumber,
+  }),
 });

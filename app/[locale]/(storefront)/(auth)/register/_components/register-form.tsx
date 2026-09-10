@@ -4,12 +4,20 @@ import { useTranslations } from 'next-intl';
 
 import { useActionState } from 'react';
 
+import type { CustomFormField } from '~/domain/form-fields';
+import { CustomFields } from '~/ui/patterns/custom-fields';
 import { TextField } from '~/ui/patterns/form-field';
 import { RecaptchaField } from '~/ui/patterns/recaptcha-field';
 
 import { register } from '../../_actions/register';
 
-export function RegisterForm({ siteKey }: { siteKey: string | null }) {
+export function RegisterForm({
+  siteKey,
+  customFields,
+}: {
+  siteKey: string | null;
+  customFields: CustomFormField[];
+}) {
   const t = useTranslations();
 
   const [result, formAction, isPending] = useActionState(register, null);
@@ -28,6 +36,13 @@ export function RegisterForm({ siteKey }: { siteKey: string | null }) {
       <TextField autoComplete="tel" errors={errors.phone} label={t('Account.phone')} name="phone" type="tel" />
       <TextField autoComplete="new-password" errors={errors.password} label={t('Auth.password')} name="password" required type="password" />
       <TextField autoComplete="new-password" errors={errors.confirmPassword} label={t('Auth.confirmPassword')} name="confirmPassword" required type="password" />
+
+      {/*
+        After the built-ins and before the password pair, which is where the
+        merchant's own sort order places them relative to everything they can
+        actually reorder.
+      */}
+      <CustomFields disabled={isPending} errors={errors} fields={customFields} />
 
       {formErrors.length > 0 && (
         <p className="text-sm text-error" data-testid="register-error" role="alert">

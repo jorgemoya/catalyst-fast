@@ -7,6 +7,7 @@ import { getCustomerProfile } from '~/data/customer/customer';
 import { ChangePasswordForm } from './_components/change-password-form';
 import { NewsletterForm } from './_components/newsletter-form';
 import { ProfileForm } from './_components/profile-form';
+import { getFormFields } from '~/data/form-fields';
 
 /** Translated, so it must be generated per request rather than at import. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -33,7 +34,7 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-12">
       <section>
         <h2 className="mb-6 text-lg font-semibold">{t('Account.profile')}</h2>
-        <ProfileForm profile={profile} />
+        <ProfileForm customFields={(await getFormFields()).customer} profile={profile} />
       </section>
 
       <section>

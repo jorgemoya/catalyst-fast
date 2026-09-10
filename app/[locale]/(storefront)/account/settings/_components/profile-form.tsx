@@ -5,13 +5,21 @@ import { useTranslations } from 'next-intl';
 import { useActionState } from 'react';
 
 import type { CustomerProfile } from '~/data/customer/customer';
+import type { CustomFormField } from '~/domain/form-fields';
+import { CustomFields } from '~/ui/patterns/custom-fields';
 
 import { updateProfile } from '../_actions/update-profile';
 
 const inputClass =
   'h-10 w-full rounded-(--radius-control) border border-border bg-background px-2 text-sm';
 
-export function ProfileForm({ profile }: { profile: CustomerProfile }) {
+export function ProfileForm({
+  profile,
+  customFields,
+}: {
+  profile: CustomerProfile;
+  customFields: CustomFormField[];
+}) {
   const t = useTranslations();
 
   const [result, formAction, isPending] = useActionState(updateProfile, null);
@@ -34,6 +42,8 @@ export function ProfileForm({ profile }: { profile: CustomerProfile }) {
       >
         {isPending ? t('Account.saving') : t('Account.save')}
       </button>
+
+      <CustomFields disabled={isPending} errors={errors} fields={customFields} />
 
       {formErrors.length > 0 && (
         <p className="text-sm text-error" role="alert">

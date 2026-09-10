@@ -284,7 +284,12 @@
     "passwordChanged": "Your password has been changed.",
     "changePasswordFailed": "We couldn't change your password.",
     "security": "Security",
-    "botCheckFailed": "We could not verify that request. Please try again."
+    "botCheckFailed": "We could not verify that request. Please try again.",
+    "passwordNeedsLowerCase": "Include at least one lowercase letter.",
+    "passwordNeedsUpperCase": "Include at least one uppercase letter.",
+    "passwordNeedsNumber": "Include at least one number.",
+    "tooLong": "Must be {max} characters or fewer.",
+    "invalidNumber": "Enter a number."
   },
   "Account": {
     "noOrdersTitle": "No orders yet",
@@ -310,7 +315,6 @@
     "city": "City",
     "stateOrProvince": "State / Province",
     "postalCode": "Postal code",
-    "countryCode": "Country code",
     "cancel": "Cancel",
     "orderDetail": "Order details",
     "orderPlaced": "Placed {date}",
@@ -327,7 +331,8 @@
     "newsletterSaving": "Saving…",
     "newsletterOn": "You are subscribed to our newsletter.",
     "newsletterOff": "You have been unsubscribed.",
-    "newsletterFailed": "We could not update your preference. Please try again."
+    "newsletterFailed": "We could not update your preference. Please try again.",
+    "country": "Country"
   },
   "Wishlist": {
     "save": "Save to wishlist",

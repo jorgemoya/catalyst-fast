@@ -284,7 +284,12 @@
     "passwordChanged": "Tu contraseña se ha cambiado.",
     "changePasswordFailed": "No hemos podido cambiar tu contraseña.",
     "security": "Seguridad",
-    "botCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo."
+    "botCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo.",
+    "passwordNeedsLowerCase": "Incluye al menos una letra minúscula.",
+    "passwordNeedsUpperCase": "Incluye al menos una letra mayúscula.",
+    "passwordNeedsNumber": "Incluye al menos un número.",
+    "tooLong": "Debe tener {max} caracteres o menos.",
+    "invalidNumber": "Introduce un número."
   },
   "Account": {
     "noOrdersTitle": "Todavía no hay pedidos",
@@ -310,7 +315,6 @@
     "city": "Ciudad",
     "stateOrProvince": "Provincia / estado",
     "postalCode": "Código postal",
-    "countryCode": "Código de país",
     "cancel": "Cancelar",
     "orderDetail": "Detalles del pedido",
     "orderPlaced": "Realizado el {date}",
@@ -327,7 +331,8 @@
     "newsletterSaving": "Guardando…",
     "newsletterOn": "Te has suscrito a nuestro boletín.",
     "newsletterOff": "Has cancelado tu suscripción.",
-    "newsletterFailed": "No hemos podido actualizar tu preferencia. Inténtalo de nuevo."
+    "newsletterFailed": "No hemos podido actualizar tu preferencia. Inténtalo de nuevo.",
+    "country": "País"
   },
   "Wishlist": {
     "save": "Guardar en la lista de deseos",

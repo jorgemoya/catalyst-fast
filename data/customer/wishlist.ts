@@ -96,21 +96,6 @@ export async function getWishlists(): Promise<Wishlist[]> {
   }));
 }
 
-/**
- * Which of the shopper's lists contain a product.
- *
- * Derived from the single wishlists read rather than asking BigCommerce per
- * product, so the PDP heart costs no additional origin request beyond the one the
- * account page already makes.
- */
-export async function getWishlistsContaining(productId: number): Promise<number[]> {
-  const wishlists = await getWishlists();
-
-  return wishlists
-    .filter((wishlist) => wishlist.items.some((item) => item.productId === productId))
-    .map((wishlist) => wishlist.id);
-}
-
 const WishlistDetailQuery = graphql(`
   query WishlistDetail($entityId: Int!) {
     customer {

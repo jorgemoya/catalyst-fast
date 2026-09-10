@@ -5,7 +5,10 @@ import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 
 import { getSession } from '~/data/customer/session';
+import { getFormFields } from '~/data/form-fields';
+import { AMBIGUOUS_US_ABBREVIATIONS, getCountries } from '~/data/geography';
 import { addressSchema } from '~/domain/address';
+import { CUSTOM_FIELD_PREFIX, toFormFieldsInput } from '~/domain/form-fields';
 import { mutate } from '~/lib/bigcommerce';
 import { BigCommerceGQLError } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
@@ -98,16 +101,64 @@ export async function saveAddress(
     return formError(t('Auth.notConfigured'));
   }
 
-  const submission = parseWithZod(formData, { schema: addressSchema({
-      required: t('Auth.required'),
-      countryCodeLength: t('Account.countryCodeLength'),
-    }) });
+  // Same list the form rendered from, so validation cannot drift from what the
+  // shopper was shown.
+  const [{ address: customFields }, countries] = await Promise.all([
+    getFormFields(),
+    getCountries(),
+  ]);
+
+  const submission = parseWithZod(formData, {
+    schema: addressSchema(
+      {
+        required: t('Auth.required'),
+        countryCodeLength: t('Account.countryCodeLength'),
+        tooLong: (max: number) => t('Auth.tooLong', { max }),
+        invalidNumber: t('Auth.invalidNumber'),
+      },
+      customFields,
+    ),
+  });
 
   if (submission.status !== 'success') {
     return submission.reply();
   }
 
-  const { addressEntityId, ...data } = submission.value;
+  const { addressEntityId, ...parsed } = submission.value;
+
+  /*
+   * **AA, AE and AP go in by full name.**
+   *
+   * BigCommerce matches a US state by abbreviation and those three — the armed
+   * forces regions — are ambiguous, so the abbreviation can resolve to the wrong
+   * state. The shipping estimator already guards against it; a *stored* address
+   * feeds that same matching at checkout, so the guard belongs on both paths or
+   * the saved address quietly reintroduces the problem the estimator avoids.
+   *
+   * Applied by reasoning rather than by observing a failure here — the
+   * documented footgun is on the quote path — but sending an unambiguous full
+   * name is never worse than sending an ambiguous code.
+   */
+  const country = countries.find((candidate) => candidate.code === parsed.countryCode);
+  const state = country?.states.find(
+    (candidate) =>
+      candidate.abbreviation === parsed.stateOrProvince ||
+      candidate.name === parsed.stateOrProvince,
+  );
+
+  if (state && AMBIGUOUS_US_ABBREVIATIONS.has(state.abbreviation)) {
+    parsed.stateOrProvince = state.name;
+  }
+
+  /*
+   * The custom values are stripped out of the parsed object and re-read from
+   * `formData`: they are keyed `custom_<id>` and belong under `formFields`, not
+   * alongside the built-in address columns, which BigCommerce would reject.
+   */
+  const data = {
+    ...Object.fromEntries(Object.entries(parsed).filter(([key]) => !key.startsWith(CUSTOM_FIELD_PREFIX))),
+    formFields: toFormFieldsInput(customFields, formData),
+  } as typeof parsed & { formFields?: ReturnType<typeof toFormFieldsInput> };
 
   try {
     // One form serves both create and edit; the presence of an id decides which

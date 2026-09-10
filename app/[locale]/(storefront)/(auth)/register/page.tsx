@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Link } from '~/ui/primitives/link';
 
 import { RegisterForm } from './_components/register-form';
+import { getFormFields } from '~/data/form-fields';
 import { getRecaptchaSettings } from '~/data/recaptcha';
 
 /** Translated, so it must be generated per request rather than at import. */
@@ -23,7 +24,10 @@ export default async function RegisterPage() {
     <div className="page-container py-12">
       <div className="mx-auto max-w-lg">
         <h1 className="text-2xl font-semibold tracking-tight">{t('Auth.register')}</h1>
-        <RegisterForm siteKey={(await getRecaptchaSettings())?.siteKey ?? null} />
+        <RegisterForm
+          customFields={(await getFormFields()).customer}
+          siteKey={(await getRecaptchaSettings())?.siteKey ?? null}
+        />
         <p className="mt-6 text-sm text-muted">
           {t('Auth.haveAccount')}{' '}
           <Link className="text-primary underline underline-offset-4" href="/login">

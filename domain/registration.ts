@@ -1,51 +1,79 @@
 import { z } from 'zod';
 
+import {
+  type CustomFormField,
+  type PasswordRules,
+  customFieldsSchema,
+  passwordSchema,
+} from './form-fields';
+
 /** Copy injected by the caller — see the note in `domain/address.ts`. */
 export interface RegistrationMessages {
   required: string;
   invalidEmail: string;
   passwordTooShort: (min: number) => string;
   passwordMismatch: string;
+  passwordNeedsLowerCase: string;
+  passwordNeedsUpperCase: string;
+  passwordNeedsNumber: string;
+  tooLong: (max: number) => string;
+  invalidNumber: string;
 }
-
 
 /**
  * Registration form shape.
  *
- * **Deliberately not driven by BigCommerce's `formFields`.** Catalyst builds this
- * form dynamically from the store's customer field configuration, which is
- * genuinely more faithful — it picks up custom fields and per-store required
- * flags. It is also a large amount of machinery, and every field it can produce
- * beyond these six is optional on `RegisterCustomerInput`.
+ * **Built-ins hand-written, custom fields from the store.** The six built-ins are
+ * required by `RegisterCustomerInput` itself and need bespoke handling —
+ * confirmation matching, autocomplete hints — so generating them from
+ * `formFields` would buy nothing. Everything the merchant added on top comes
+ * from `data/form-fields.ts` and is merged in below.
  *
- * So this covers the six fields the mutation actually requires or commonly uses,
- * and the store's own rules still apply: BigCommerce validates password
- * complexity and email uniqueness server-side and returns worded errors, which
- * the action surfaces verbatim. Dynamic custom fields remain a gap, recorded in
- * docs/phase-6-auth.md rather than half-built.
+ * That second half used to be missing, and it was not free: this store has an
+ * "Exclusive Offers" opt-in configured that the form simply never rendered.
  *
- * Password length is the one rule enforced locally, purely so the shopper gets
- * immediate feedback instead of a round trip; the store's real minimum may be
- * higher and its rejection is shown as-is.
+ * **Password rules come from the store too.** The previous hardcoded minimum of
+ * 8 was *stricter* than this store's actual 7, so a password BigCommerce would
+ * have accepted was rejected in the browser before it was ever tried. The
+ * defaults below are BigCommerce's own floor, used only when settings are
+ * unavailable.
  */
-const MIN_PASSWORD_LENGTH = 8;
+const DEFAULT_PASSWORD_RULES: PasswordRules = {
+  minLength: 7,
+  requireLowerCase: false,
+  requireUpperCase: false,
+  requireNumbers: false,
+};
 
-export const registerSchema = (m: RegistrationMessages) =>
+export const registerSchema = (
+  m: RegistrationMessages,
+  customFields: readonly CustomFormField[] = [],
+  passwordRules: PasswordRules = DEFAULT_PASSWORD_RULES,
+) =>
   z
     .object({
-    firstName: z.string().trim().min(1, m.required).max(50),
-    lastName: z.string().trim().min(1, m.required).max(50),
-    email: z.string().trim().min(1, m.required).email(m.invalidEmail),
-    password: z
-      .string()
-      .min(MIN_PASSWORD_LENGTH, m.passwordTooShort(MIN_PASSWORD_LENGTH)),
-    confirmPassword: z.string().min(1, m.required),
-    company: z.string().trim().max(100).optional(),
-    phone: z.string().trim().max(50).optional(),
-  })
-  // Reported against the confirmation field, not the form, so it appears next to
-  // the input the shopper needs to fix.
-  .refine((values) => values.password === values.confirmPassword, {
-    message: m.passwordMismatch,
-    path: ['confirmPassword'],
-  });
+      firstName: z.string().trim().min(1, m.required).max(50),
+      lastName: z.string().trim().min(1, m.required).max(50),
+      email: z.string().trim().min(1, m.required).email(m.invalidEmail),
+      password: passwordSchema(passwordRules, {
+        tooShort: m.passwordTooShort,
+        needsLowerCase: m.passwordNeedsLowerCase,
+        needsUpperCase: m.passwordNeedsUpperCase,
+        needsNumber: m.passwordNeedsNumber,
+      }),
+      confirmPassword: z.string().min(1, m.required),
+      company: z.string().trim().max(100).optional(),
+      phone: z.string().trim().max(50).optional(),
+
+      ...customFieldsSchema(customFields, {
+        required: m.required,
+        tooLong: m.tooLong,
+        invalidNumber: m.invalidNumber,
+      }),
+    })
+    // Reported against the confirmation field, not the form, so it appears next
+    // to the input the shopper needs to fix.
+    .refine((values) => values.password === values.confirmPassword, {
+      message: m.passwordMismatch,
+      path: ['confirmPassword'],
+    });

@@ -6,7 +6,12 @@ import { addressSchema } from './address';
  * Fixture copy. The schema takes injected messages now, so the spec supplies
  * its own — which is the point of the injection: no translator, no locale.
  */
-const t = { required: 'required', countryCodeLength: 'countryCodeLength' };
+const t = {
+  required: 'required',
+  countryCodeLength: 'countryCodeLength',
+  tooLong: (max: number) => `tooLong:${max}`,
+  invalidNumber: 'invalidNumber',
+};
 
 const valid = {
   firstName: 'Ana',

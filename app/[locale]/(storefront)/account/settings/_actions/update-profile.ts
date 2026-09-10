@@ -5,7 +5,14 @@ import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 import { z } from 'zod';
 
+import { getFormFields } from '~/data/form-fields';
 import { getSession } from '~/data/customer/session';
+import {
+  CUSTOM_FIELD_PREFIX,
+  type CustomFormField,
+  customFieldsSchema,
+  toFormFieldsInput,
+} from '~/domain/form-fields';
 import { mutate } from '~/lib/bigcommerce';
 import { BigCommerceGQLError } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
@@ -47,14 +54,23 @@ const UpdateCustomerMutation = graphql(`
  * locale happened to load first and showing English errors to a Spanish
  * shopper. Built per call instead, from the request's own translator.
  */
-const profileSchema = (t: Awaited<ReturnType<typeof getTForAction>>) =>
+const profileSchema = (
+  t: Awaited<ReturnType<typeof getTForAction>>,
+  customFields: readonly CustomFormField[],
+) =>
   z.object({
-  firstName: z.string().trim().min(1, t('Auth.required')).max(50),
-  lastName: z.string().trim().min(1, t('Auth.required')).max(50),
-  email: z.string().trim().min(1, t('Auth.required')).email(t('Auth.invalidEmail')),
-  company: z.string().trim().max(100).optional(),
-  phone: z.string().trim().max(50).optional(),
-});
+    firstName: z.string().trim().min(1, t('Auth.required')).max(50),
+    lastName: z.string().trim().min(1, t('Auth.required')).max(50),
+    email: z.string().trim().min(1, t('Auth.required')).email(t('Auth.invalidEmail')),
+    company: z.string().trim().max(100).optional(),
+    phone: z.string().trim().max(50).optional(),
+
+    ...customFieldsSchema(customFields, {
+      required: t('Auth.required'),
+      tooLong: (max: number) => t('Auth.tooLong', { max }),
+      invalidNumber: t('Auth.invalidNumber'),
+    }),
+  });
 
 const formError = (message: string): SubmissionResult => ({
   status: 'error',
@@ -73,7 +89,11 @@ export async function updateProfile(
     return formError(t('Auth.notConfigured'));
   }
 
-  const submission = parseWithZod(formData, { schema: profileSchema(t) });
+  // The same customer field list registration uses — an account edit must be
+  // able to change anything signup could set.
+  const { customer: customFields } = await getFormFields();
+
+  const submission = parseWithZod(formData, { schema: profileSchema(t, customFields) });
 
   if (submission.status !== 'success') {
     return submission.reply();
@@ -83,7 +103,17 @@ export async function updateProfile(
     const data = await mutate({
       document: UpdateCustomerMutation,
       customerAccessToken: session.customerAccessToken,
-      variables: { input: submission.value },
+      variables: {
+        input: {
+          // Built-ins only; the custom values belong under `formFields`.
+          ...Object.fromEntries(
+            Object.entries(submission.value).filter(
+              ([key]) => !key.startsWith(CUSTOM_FIELD_PREFIX),
+            ),
+          ),
+          formFields: toFormFieldsInput(customFields, formData),
+        },
+      },
     });
 
     const errors = data.customer.updateCustomer.errors;

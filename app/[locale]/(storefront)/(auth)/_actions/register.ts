@@ -4,6 +4,8 @@ import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
 
+import { getFormFields } from '~/data/form-fields';
+import { toFormFieldsInput } from '~/domain/form-fields';
 import { readRecaptchaToken } from '~/lib/recaptcha';
 import { redirect } from 'next/navigation';
 
@@ -65,12 +67,31 @@ export async function register(
     return formError(t('Auth.notConfigured'));
   }
 
-  const submission = parseWithZod(formData, { schema: registerSchema({
-    required: t('Auth.required'),
-    invalidEmail: t('Auth.invalidEmail'),
-    passwordTooShort: (min: number) => t('Auth.passwordTooShort', { min }),
-    passwordMismatch: t('Auth.passwordMismatch'),
-  }) });
+  /*
+   * The store's own field configuration and password rules. Cached, so this is
+   * a read from memory on all but the first registration of the window — and it
+   * is the same list the form rendered from, so validation cannot drift from
+   * what the shopper was shown.
+   */
+  const { customer: customFields, password: passwordRules } = await getFormFields();
+
+  const submission = parseWithZod(formData, {
+    schema: registerSchema(
+      {
+        required: t('Auth.required'),
+        invalidEmail: t('Auth.invalidEmail'),
+        passwordTooShort: (min: number) => t('Auth.passwordTooShort', { min }),
+        passwordMismatch: t('Auth.passwordMismatch'),
+        passwordNeedsLowerCase: t('Auth.passwordNeedsLowerCase'),
+        passwordNeedsUpperCase: t('Auth.passwordNeedsUpperCase'),
+        passwordNeedsNumber: t('Auth.passwordNeedsNumber'),
+        tooLong: (max: number) => t('Auth.tooLong', { max }),
+        invalidNumber: t('Auth.invalidNumber'),
+      },
+      customFields,
+      passwordRules,
+    ),
+  });
 
   if (submission.status !== 'success') {
     return submission.reply();
@@ -95,6 +116,13 @@ export async function register(
           lastName,
           ...(company && { company }),
           ...(phone && { phone }),
+
+          /*
+           * Read from `formData` rather than the parsed value, so a checkbox
+           * group's repeated entries survive — `submission.value` keeps only the
+           * last, which would silently drop every selection but one.
+           */
+          formFields: toFormFieldsInput(customFields, formData),
         },
         /*
          * Forwarded, not verified here: BigCommerce holds the secret and

@@ -143,6 +143,71 @@ test.describe('account', () => {
     expect(typeof (await toggle.isChecked())).toBe('boolean');
   });
 
+  /*
+   * Country and state are selects, not free text.
+   *
+   * They used to be two plain inputs asking for a two-letter code, so "USA" and
+   * "United States" both failed and a mistyped state produced an address
+   * BigCommerce accepts and a courier cannot deliver. The shipping estimator in
+   * the same codebase already did this properly.
+   */
+  test('the address form picks country and state from lists', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/account/addresses/');
+    await page.getByRole('button', { name: 'Add address' }).click();
+
+    const country = page.locator('select[name="countryCode"]');
+
+    await expect(country).toBeVisible();
+    await expect(country.locator('option')).not.toHaveCount(1);
+
+    // Choosing a country with states reveals the state list; before this fix
+    // there was no such dependency because both were free text.
+    await country.selectOption({ label: 'United States' });
+    await expect(page.locator('select[name="stateOrProvince"]')).toBeVisible();
+  });
+
+  /*
+   * The address form renders the merchant's own extra fields.
+   *
+   * This store has two — a "Residence Type" picklist and a "Delivery Notes"
+   * multiline — that the hand-written schema silently dropped. The failure had
+   * no symptom: `formFields` is optional on the mutation, so BigCommerce accepted
+   * the omission and the merchant simply never received the answers.
+   *
+   * Render-only. Submitting would write a real address to the fixture account,
+   * and the value here is proving the fields exist and are labelled.
+   */
+  test("the address form renders the store's own custom fields", async ({ page }) => {
+    await signIn(page);
+    await page.goto('/account/addresses/');
+
+    await page.getByRole('button', { name: 'Add address' }).click();
+
+    const custom = page.locator('[name^="custom_"]');
+
+    if ((await custom.count()) === 0) {
+      test.skip(true, 'store has no custom address fields configured');
+    }
+
+    await expect(custom.first()).toBeVisible();
+
+    // Every custom control carries a label, an enclosing label, or a fieldset.
+    const unlabelled = await page.evaluate(() =>
+      [...document.querySelectorAll('[name^="custom_"]')].filter((el) => {
+        const name = el.getAttribute('name') ?? '';
+
+        return (
+          !document.querySelector(`label[for="${name}"]`) &&
+          !el.closest('label') &&
+          !el.closest('fieldset')
+        );
+      }).length,
+    );
+
+    expect(unlabelled).toBe(0);
+  });
+
   test('round-trips a wishlist: create, save a product, remove, delete', async ({ page }) => {
     const name = `E2E ${Date.now()}`;
 

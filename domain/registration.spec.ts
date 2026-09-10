@@ -11,6 +11,11 @@ const messages = {
   invalidEmail: 'invalidEmail',
   passwordTooShort: (min: number) => `passwordTooShort:${min}`,
   passwordMismatch: 'passwordMismatch',
+  passwordNeedsLowerCase: 'needsLowerCase',
+  passwordNeedsUpperCase: 'needsUpperCase',
+  passwordNeedsNumber: 'needsNumber',
+  tooLong: (max: number) => `tooLong:${max}`,
+  invalidNumber: 'invalidNumber',
 };
 
 const schema = registerSchema(messages);
