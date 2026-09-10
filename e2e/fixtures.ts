@@ -46,3 +46,13 @@ export const CONTACT_PAGE = '/contact-us/';
 
 /** A term that matches products on this catalog. */
 export const SEARCH_TERM = 'towel';
+
+/**
+ * A product with more than one page of gallery images.
+ *
+ * The gallery renders its first twelve server-side; only a product past that
+ * boundary exercises the "load more" path at all. `[Sample] Utility Caddy` is the
+ * one on this store — verified by querying `images.pageInfo.hasNextPage` across
+ * the catalog.
+ */
+export const PRODUCT_WITH_MANY_IMAGES = '/utility-caddy/';

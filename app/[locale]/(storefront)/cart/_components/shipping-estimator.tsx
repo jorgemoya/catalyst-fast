@@ -8,9 +8,11 @@ import {
   type EstimateState,
   cancelShippingEstimate,
   estimateShippingCost,
+  selectShippingMethod,
 } from '../_actions/shipping';
 
 import type { Country } from '~/data/geography';
+import type { ShippingOption } from '~/lib/cart/shipping';
 import { formatCurrencyIn } from '~/lib/i18n/messages';
 
 /**
@@ -32,7 +34,19 @@ export function ShippingEstimator({ countries }: { countries: Country[] }) {
   const [editing, setEditing] = useState(true);
 
   const country = countries.find((candidate) => candidate.code === countryCode);
-  const showResult = !editing && result;
+
+  /*
+   * Three states, not two. The form collapses on submit, but the result only
+   * exists once the action resolves — so `!editing && result` left a window in
+   * which the section rendered nothing but its heading. On a cold consignment
+   * that is a second or more of the panel appearing to have swallowed the
+   * submission.
+   *
+   * Caught by an e2e that silently *skipped* rather than failed: it sampled the
+   * empty window and read it as "this store quotes no options".
+   */
+  const showResult = !editing && result !== null;
+  const showPending = !editing && result === null;
 
   return (
     <section className="mt-6 border-t border-border pt-6">
@@ -110,6 +124,14 @@ export function ShippingEstimator({ countries }: { countries: Country[] }) {
         </form>
       ) : null}
 
+      {showPending ? (
+        // Matches the button's own label so the wording does not change under
+        // the shopper mid-request.
+        <p className="text-sm text-muted" data-testid="shipping-pending" role="status">
+          {t('Cart.shippingEstimating')}
+        </p>
+      ) : null}
+
       {showResult ? (
         <div className="flex flex-col gap-3">
           <EstimateResult state={result} />
@@ -137,7 +159,6 @@ export function ShippingEstimator({ countries }: { countries: Country[] }) {
 
 function EstimateResult({ state }: { state: EstimateState }) {
   const t = useTranslations();
-  const activeLocale = useLocale();
 
   if (state.status === 'error') {
     return (
@@ -153,17 +174,75 @@ function EstimateResult({ state }: { state: EstimateState }) {
     return <p className="text-sm text-muted">{t('Cart.shippingNone')}</p>;
   }
 
+  return <ShippingOptions options={state.options ?? []} />;
+}
+
+/**
+ * The quotes, as a choice rather than a readout.
+ *
+ * They used to render as a plain `<ul>`: a shopper could see that Express costs
+ * more and had no way to take it, so the consignment kept whatever BigCommerce
+ * had defaulted to. Radios plus an explicit apply, because changing the shipping
+ * method changes the order total — that should be a deliberate act, not a
+ * side effect of clicking a row.
+ */
+function ShippingOptions({ options }: { options: ShippingOption[] }) {
+  const t = useTranslations();
+  const activeLocale = useLocale();
+  const [state, action, pending] = useActionState(selectShippingMethod, null);
+  const [chosen, setChosen] = useState(options[0]?.id ?? '');
+
+  const selected = options.find((option) => option.id === chosen);
+
   return (
-    <div>
+    <form action={action}>
       <h3 className="mb-2 text-sm font-medium">{t('Cart.shippingOptions')}</h3>
+
+      {/* The consignment the chosen option belongs to — the mutation needs both. */}
+      <input name="consignmentId" type="hidden" value={selected?.consignmentId ?? ''} />
+      <input name="optionId" type="hidden" value={chosen} />
+
       <ul className="flex flex-col gap-1 text-sm">
-        {state.options?.map((option) => (
-          <li className="flex justify-between gap-4" key={option.id}>
-            <span>{option.description}</span>
-            <span>{formatCurrencyIn(activeLocale, option.cost.value, option.cost.currencyCode)}</span>
+        {options.map((option) => (
+          <li key={option.id}>
+            <label className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
+                <input
+                  checked={chosen === option.id}
+                  className="size-4"
+                  disabled={pending}
+                  name="shippingOption"
+                  onChange={() => setChosen(option.id)}
+                  type="radio"
+                  value={option.id}
+                />
+                {option.description}
+              </span>
+              <span>
+                {formatCurrencyIn(activeLocale, option.cost.value, option.cost.currencyCode)}
+              </span>
+            </label>
           </li>
         ))}
       </ul>
-    </div>
+
+      <button
+        className="mt-3 rounded-(--radius-control) border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
+        data-testid="apply-shipping"
+        disabled={pending || chosen === ''}
+        type="submit"
+      >
+        {pending ? t('Cart.shippingApplying') : t('Cart.shippingApply')}
+      </button>
+
+      {state?.message !== undefined && (
+        <p
+          className={state.status === 'error' ? 'mt-2 text-sm text-error' : 'mt-2 text-sm text-in-stock'}
+          role="status"
+        >
+          {state.message}
+        </p>
+      )}
+    </form>
   );
 }

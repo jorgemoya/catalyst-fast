@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-import { OUT_OF_STOCK_PRODUCT, PRODUCT_WITH_OPTIONS, SIMPLE_PRODUCT } from './fixtures';
+import {
+  OUT_OF_STOCK_PRODUCT,
+  PRODUCT_WITH_MANY_IMAGES,
+  PRODUCT_WITH_OPTIONS,
+  SIMPLE_PRODUCT,
+} from './fixtures';
 
 
 test.describe('product detail shell', () => {
@@ -227,4 +232,37 @@ test('quantity input is centred between its buttons', async ({ page }) => {
   expect(offset).not.toBeNull();
   // Sub-pixel tolerance only. The bug was ~8px.
   expect(Math.abs(offset ?? 99)).toBeLessThan(1);
+});
+
+/**
+ * Gallery pagination.
+ *
+ * The first twelve images are always server-rendered, so the button is pure
+ * enhancement — but a button that does nothing is worse than no button, and only
+ * a click proves the server action is wired.
+ */
+test.describe('gallery load more', () => {
+  test('appends the next page of images', async ({ page }) => {
+    await page.goto(PRODUCT_WITH_MANY_IMAGES);
+
+    const thumbs = page.getByRole('button', { name: /View image \d+ of/ });
+    const button = page.getByTestId('load-more-images');
+
+    await expect(thumbs.first()).toBeVisible();
+
+    const before = await thumbs.count();
+
+    await expect(button).toBeVisible();
+    await button.click();
+
+    // More thumbnails than before, and the originals are still there.
+    await expect.poll(async () => thumbs.count()).toBeGreaterThan(before);
+  });
+
+  test('is absent on a product that fits in one page', async ({ page }) => {
+    await page.goto(SIMPLE_PRODUCT);
+
+    await expect(page.getByRole('button', { name: /View image \d+ of/ }).first()).toBeVisible();
+    await expect(page.getByTestId('load-more-images')).toHaveCount(0);
+  });
 });

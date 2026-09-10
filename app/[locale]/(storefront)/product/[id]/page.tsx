@@ -93,7 +93,12 @@ async function ProductDetail({ params }: Props) {
       <Breadcrumbs items={product.breadcrumbs} />
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
-        <ProductGallery images={product.images} productName={product.name} />
+        <ProductGallery
+            images={product.images}
+            moreCursor={product.moreImagesCursor}
+            productId={product.id}
+            productName={product.name}
+          />
 
         <div className="flex flex-col gap-6">
           <div>
@@ -131,6 +136,28 @@ async function ProductDetail({ params }: Props) {
             the default currency get nothing here and keep a fully static page.
             Its own boundary so it can never delay the CTA.
           */}
+          {product.promotions.length > 0 && (
+            /*
+             * Above the purchase form, not below it: a promotion is an input to
+             * the buying decision, and one placed after the CTA has already
+             * missed the moment it exists for.
+             *
+             * Not a Suspense boundary — this comes from the same cached
+             * `getProduct` the heading and gallery use, so it is already in the
+             * static shell at no extra cost.
+             */
+            <ul className="flex flex-col gap-2" data-testid="promotion-callouts">
+              {product.promotions.map((promotion) => (
+                <li
+                  className="rounded-(--radius-control) bg-accent px-3 py-2 text-sm font-medium"
+                  key={promotion.id}
+                >
+                  {promotion.text}
+                </li>
+              ))}
+            </ul>
+          )}
+
           <Suspense fallback={<PurchaseSkeleton />}>
             <Purchase
               priceOverlay={

@@ -77,6 +77,15 @@ export interface ShippingOption {
   id: string;
   description: string;
   cost: { value: number; currencyCode: string };
+  /**
+   * The consignment this option belongs to.
+   *
+   * Carried on every option because selecting one requires it, and the estimate
+   * response is the only place it is available. It used to be flattened away,
+   * which is why the shopper could see quotes and not choose between them —
+   * `selectCheckoutShippingOption` needs both ids and we had thrown one out.
+   */
+  consignmentId: string;
 }
 
 export interface ShippingAddress {
@@ -154,6 +163,7 @@ export async function estimateShipping(
 
   return (consignments ?? []).flatMap((consignment) =>
     (consignment.availableShippingOptions ?? []).map((option) => ({
+      consignmentId: consignment.entityId,
       id: option.entityId,
       description: option.description,
       cost: option.cost,
@@ -206,4 +216,50 @@ export async function clearShippingConsignments(
       }
     }),
   );
+}
+
+const SelectShippingOptionMutation = graphql(`
+  mutation SelectCheckoutShippingOption($input: SelectCheckoutShippingOptionInput!) {
+    checkout {
+      selectCheckoutShippingOption(input: $input) {
+        checkout {
+          entityId
+          shippingCostTotal {
+            value
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`);
+
+/**
+ * Applies the shopper's chosen shipping method to the checkout.
+ *
+ * **The half of the estimator that was missing.** Quotes were fetched and
+ * rendered as a read-only list, so a shopper could see that Express costs $18
+ * and had no way to pick it — the consignment kept whatever BigCommerce had
+ * defaulted to. Catalyst calls the same mutation from `add-shipping-cost.ts`.
+ *
+ * Returns the resulting shipping total so the summary can show what was applied
+ * rather than re-fetching the cart to find out.
+ */
+export async function selectShippingOption(
+  cartId: string,
+  consignmentId: string,
+  shippingOptionId: string,
+): Promise<{ value: number; currencyCode: string } | null> {
+  const result = await mutate({
+    document: SelectShippingOptionMutation,
+    variables: {
+      input: {
+        checkoutEntityId: cartId,
+        consignmentEntityId: consignmentId,
+        data: { shippingOptionEntityId: shippingOptionId },
+      },
+    },
+  });
+
+  return result.checkout.selectCheckoutShippingOption?.checkout?.shippingCostTotal ?? null;
 }

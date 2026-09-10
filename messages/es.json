@@ -102,7 +102,9 @@
     "reviewProductMissing": "No se ha encontrado este producto.",
     "reviewFailed": "No se ha podido enviar tu reseña. Inténtalo de nuevo.",
     "reviewBotCheckFailed": "No hemos podido verificar la solicitud. Inténtalo de nuevo.",
-    "reviewRecaptchaNotice": "Este sitio está protegido por reCAPTCHA y se aplican la Política de Privacidad y los Términos de Servicio de Google."
+    "reviewRecaptchaNotice": "Este sitio está protegido por reCAPTCHA y se aplican la Política de Privacidad y los Términos de Servicio de Google.",
+    "loadMoreImages": "Ver más imágenes",
+    "loadingImages": "Cargando…"
   },
   "Cart": {
     "title": "Tu carrito",
@@ -168,7 +170,11 @@
     "shippingNone": "No hay opciones de envío disponibles para esa dirección.",
     "shippingEstimateFailed": "No hemos podido calcular el envío. Inténtalo de nuevo.",
     "shippingCountryRequired": "Elige un país.",
-    "checkoutFailed": "No hemos podido iniciar el pago. Tu carrito no ha cambiado; inténtalo de nuevo."
+    "checkoutFailed": "No hemos podido iniciar el pago. Tu carrito no ha cambiado; inténtalo de nuevo.",
+    "shippingSelectRequired": "Elige un método de envío.",
+    "shippingApplied": "Método de envío aplicado.",
+    "shippingApply": "Usar este método",
+    "shippingApplying": "Aplicando…"
   },
   "Home": {
     "heroTitle": "Todo lo que necesitas, nada que no.",
@@ -314,7 +320,14 @@
     "orderTax": "Impuestos",
     "shippedTo": "Enviado a",
     "backToOrders": "Volver a pedidos",
-    "countryCodeLength": "Usa un código de país de dos letras, por ejemplo ES."
+    "countryCodeLength": "Usa un código de país de dos letras, por ejemplo ES.",
+    "newsletterHeading": "Preferencias de correo",
+    "newsletterLabel": "Quiero recibir novedades y ofertas",
+    "newsletterSave": "Guardar preferencia",
+    "newsletterSaving": "Guardando…",
+    "newsletterOn": "Te has suscrito a nuestro boletín.",
+    "newsletterOff": "Has cancelado tu suscripción.",
+    "newsletterFailed": "No hemos podido actualizar tu preferencia. Inténtalo de nuevo."
   },
   "Wishlist": {
     "save": "Guardar en la lista de deseos",

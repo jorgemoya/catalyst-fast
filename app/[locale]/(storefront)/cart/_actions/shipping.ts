@@ -8,7 +8,9 @@ import {
   type ShippingOption,
   clearShippingConsignments,
   estimateShipping,
+  selectShippingOption,
 } from '~/lib/cart/shipping';
+import { revalidateCart } from '~/lib/cart/revalidate';
 
 /**
  * Shipping estimator actions.
@@ -89,4 +91,59 @@ export async function cancelShippingEstimate(): Promise<void> {
   }
 
   await clearShippingConsignments(cartId);
+}
+
+export interface SelectShippingState {
+  status: 'idle' | 'ok' | 'error';
+  /** Echoed back so the chosen radio survives the round trip. */
+  selectedId?: string;
+  message?: string;
+}
+
+/**
+ * Applies the shopper's chosen shipping method.
+ *
+ * The estimator listed quotes and offered no way to pick one, so the consignment
+ * kept whatever BigCommerce defaulted to — a shopper could read that Express
+ * costs more and still be charged Ground.
+ *
+ * Both ids come from the estimate the shopper is looking at. They are opaque
+ * BigCommerce ids validated by the mutation itself; a forged pair fails there
+ * rather than silently applying someone else's consignment, because the checkout
+ * id is taken from the session cart rather than the form.
+ */
+export async function selectShippingMethod(
+  _previous: SelectShippingState | null,
+  formData: FormData,
+): Promise<SelectShippingState> {
+  const t = await getTForAction();
+
+  const cartId = await getCartId();
+
+  if (!cartId) {
+    return { status: 'error', message: t('Cart.shippingEstimateFailed') };
+  }
+
+  const consignmentId = String(formData.get('consignmentId') ?? '').trim();
+  const optionId = String(formData.get('optionId') ?? '').trim();
+
+  if (!consignmentId || !optionId) {
+    return { status: 'error', message: t('Cart.shippingSelectRequired') };
+  }
+
+  try {
+    await selectShippingOption(cartId, consignmentId, optionId);
+  } catch (error) {
+    console.error('[shipping] select', error);
+
+    return { status: 'error', message: t('Cart.shippingEstimateFailed') };
+  }
+
+  /*
+   * The summary reads the cart, and the applied shipping changes its total — so
+   * without this the shopper picks Express and the total stays on Ground.
+   */
+  revalidateCart(cartId);
+
+  return { status: 'ok', selectedId: optionId, message: t('Cart.shippingApplied') };
 }

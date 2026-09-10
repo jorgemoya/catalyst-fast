@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { getCustomerProfile } from '~/data/customer/customer';
 
 import { ChangePasswordForm } from './_components/change-password-form';
+import { NewsletterForm } from './_components/newsletter-form';
 import { ProfileForm } from './_components/profile-form';
 
 /** Translated, so it must be generated per request rather than at import. */
@@ -33,6 +34,11 @@ export default async function SettingsPage() {
       <section>
         <h2 className="mb-6 text-lg font-semibold">{t('Account.profile')}</h2>
         <ProfileForm profile={profile} />
+      </section>
+
+      <section>
+        <h2 className="mb-6 text-lg font-semibold">{t('Account.newsletterHeading')}</h2>
+        <NewsletterForm subscribed={profile.isSubscribedToNewsletter} />
       </section>
 
       <section>

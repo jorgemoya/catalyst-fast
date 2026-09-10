@@ -102,7 +102,9 @@
     "reviewProductMissing": "This product could not be found.",
     "reviewFailed": "Your review could not be submitted. Please try again.",
     "reviewBotCheckFailed": "We could not verify that request. Please try again.",
-    "reviewRecaptchaNotice": "This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply."
+    "reviewRecaptchaNotice": "This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.",
+    "loadMoreImages": "Load more images",
+    "loadingImages": "Loading…"
   },
   "Cart": {
     "title": "Your cart",
@@ -168,7 +170,11 @@
     "shippingNone": "No shipping options are available for that address.",
     "shippingEstimateFailed": "We could not estimate shipping. Please try again.",
     "shippingCountryRequired": "Choose a country.",
-    "checkoutFailed": "We could not start checkout. Your cart is unchanged — please try again."
+    "checkoutFailed": "We could not start checkout. Your cart is unchanged — please try again.",
+    "shippingSelectRequired": "Choose a shipping method.",
+    "shippingApplied": "Shipping method applied.",
+    "shippingApply": "Use this method",
+    "shippingApplying": "Applying…"
   },
   "Home": {
     "heroTitle": "Everything you need, nothing you don’t.",
@@ -314,7 +320,14 @@
     "orderTax": "Tax",
     "shippedTo": "Shipped to",
     "backToOrders": "Back to orders",
-    "countryCodeLength": "Use a two-letter country code, e.g. US."
+    "countryCodeLength": "Use a two-letter country code, e.g. US.",
+    "newsletterHeading": "Email preferences",
+    "newsletterLabel": "Send me news and offers",
+    "newsletterSave": "Save preference",
+    "newsletterSaving": "Saving…",
+    "newsletterOn": "You are subscribed to our newsletter.",
+    "newsletterOff": "You have been unsubscribed.",
+    "newsletterFailed": "We could not update your preference. Please try again."
   },
   "Wishlist": {
     "save": "Save to wishlist",

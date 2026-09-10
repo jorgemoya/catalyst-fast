@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useState } from 'react';
 
+import { loadMoreImages } from '~/app/[locale]/(storefront)/product/[id]/_actions/load-images';
 import type { ProductImage } from '~/data/product';
 import { cn } from '~/lib/cn';
 import { Image } from '~/ui/primitives/image';
@@ -23,8 +24,27 @@ const prefersReducedMotion = (): boolean =>
   typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function ProductGallery({ images, productName }: { images: ProductImage[]; productName: string }) {
+export function ProductGallery({
+  images: initialImages,
+  productName,
+  productId,
+  moreCursor,
+}: {
+  images: ProductImage[];
+  productName: string;
+  productId: number;
+  /** Cursor for images past the first page, or null when there are none. */
+  moreCursor?: string | null;
+}) {
   const t = useTranslations();
+
+  /*
+   * Seeded from the server-rendered images and only ever appended to, so the
+   * gallery is complete before hydration and the button is pure enhancement.
+   */
+  const [images, setImages] = useState(initialImages);
+  const [cursor, setCursor] = useState(moreCursor ?? null);
+  const [loading, setLoading] = useState(false);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const active = images[activeIndex] ?? images[0];
@@ -106,6 +126,35 @@ export function ProductGallery({ images, productName }: { images: ProductImage[]
             </li>
           ))}
         </ul>
+      )}
+
+      {cursor !== null && (
+        <button
+          className="self-start rounded-(--radius-control) border border-border px-4 py-2 text-sm hover:bg-accent disabled:opacity-60"
+          data-testid="load-more-images"
+          disabled={loading}
+          onClick={() => {
+            setLoading(true);
+
+            void loadMoreImages(productId, cursor)
+              .then((page) => {
+                // Appended, never replaced — the shopper may already have a
+                // thumbnail selected, and re-seeding would move it.
+                setImages((current) => [...current, ...page.images]);
+                setCursor(page.nextCursor);
+              })
+              .catch((error: unknown) => {
+                // The gallery still holds everything it had; losing the extra
+                // page is not worth an error state over the product itself.
+                console.error('[gallery]', error);
+                setCursor(null);
+              })
+              .finally(() => setLoading(false));
+          }}
+          type="button"
+        >
+          {loading ? t('Product.loadingImages') : t('Product.loadMoreImages')}
+        </button>
       )}
     </div>
   );

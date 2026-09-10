@@ -246,6 +246,86 @@ test.describe('guest journey', () => {
 });
 
 /**
+ * Shipping estimator.
+ *
+ * The quotes used to render as a read-only list: a shopper could see that one
+ * method costs more and had no way to take it, so the consignment kept whatever
+ * BigCommerce defaulted to. Selecting is the half that was missing.
+ *
+ * Writes to the shopper's own cart, which is created fresh by this test and
+ * abandoned after — no merchant-visible record, unlike an order.
+ */
+test.describe('shipping estimator', () => {
+  test('quotes an address and applies the chosen method', async ({ page }) => {
+    await page.goto(SIMPLE_PRODUCT);
+    await page.getByTestId('add-to-cart').click();
+    // Wait for the badge before navigating: the cart cookie is set by the
+    // action, and going to /cart/ first lands on the empty state.
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    const country = page.locator('select[name="countryCode"]');
+
+    await expect(country).toBeVisible();
+    await country.selectOption({ label: 'United States' });
+
+    /*
+     * A coherent address. An arbitrary state paired with a Beverly Hills
+     * postcode quotes nothing, which the test then reads as "store does not ship
+     * here" and skips — passing while proving nothing.
+     */
+    const state = page.locator('select[name="state"]');
+
+    await expect(state).toBeVisible();
+    await state.selectOption({ label: 'California' });
+    await page.locator('input[name="city"]').fill('Beverly Hills');
+    await page.locator('input[name="postalCode"]').fill('90210');
+    await page.getByRole('button', { name: /Estimate|Calcular/ }).click();
+
+    const apply = page.getByTestId('apply-shipping');
+    const noOptions = page.getByText('No shipping options are available');
+
+    /*
+     * The panel must never go blank. It used to render only its heading between
+     * the form collapsing and the action resolving, so a submission looked
+     * swallowed for a second or more.
+     *
+     * Asserted on the pending element *specifically*. The weaker "pending OR a
+     * result is visible" version passes against the broken build too, since the
+     * result also arrives inside any reasonable timeout — it would have proved
+     * nothing.
+     */
+    await expect(page.getByTestId('shipping-pending')).toBeVisible({ timeout: 2_000 });
+
+    /*
+     * Wait for the estimate to *resolve* before branching. `count()` does not
+     * auto-wait, so checking it immediately after submit samples the gap between
+     * the form collapsing and the action returning — the estimator renders
+     * nothing at all in that window, which reads identically to "no options" and
+     * silently skipped this test while the feature worked.
+     */
+    await expect(apply.or(noOptions).first()).toBeVisible({ timeout: 20_000 });
+
+    // A store may genuinely not ship to the address; that is a pass, not a
+    // failure, and is exactly what the 'none' state exists to say.
+    if ((await noOptions.count()) > 0) {
+      test.skip(true, 'store quotes no shipping options for this address');
+    }
+
+    const options = page.locator('input[name="shippingOption"]');
+
+    await expect(options.first()).toBeVisible();
+
+    // Pick the last option so the assertion cannot pass on the default.
+    await options.last().check();
+    await apply.click();
+
+    await expect(page.getByText(/Shipping method applied|Método de envío aplicado/)).toBeVisible();
+  });
+});
+
+/**
  * Server toasts.
  *
  * The whole mechanism was broken and silent: `getServerToast` deleted the cookie

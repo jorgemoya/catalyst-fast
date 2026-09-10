@@ -40,6 +40,14 @@ const ProductQuery = graphql(
           plainTextDescription(characterLimit: 200)
           warranty
           condition
+          featuredPromotions {
+            edges {
+              node {
+                entityId
+                text
+              }
+            }
+          }
           weight {
             value
             unit
@@ -53,6 +61,10 @@ const ProductQuery = graphql(
             altText
           }
           images(first: 12) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
             edges {
               node {
                 url: urlTemplate(lossy: true)
@@ -129,9 +141,25 @@ export interface Product {
   plainTextDescription: string;
   warranty: string | null;
   condition: string | null;
+  /**
+   * Merchant-authored callouts — "Free shipping over $50", "Buy 2 get 1".
+   *
+   * Plain text from BigCommerce, not HTML, so it needs no sanitizing and must
+   * not be rendered with `dangerouslySetInnerHTML`.
+   */
+  promotions: Array<{ id: number; text: string }>;
   weight: { value: number; unit: string } | null;
   brand: { name: string; path: string } | null;
   images: ProductImage[];
+  /**
+   * Cursor for images beyond the first twelve, or `null` when there are none.
+   *
+   * The gallery renders every image it is given directly into the HTML, so it
+   * works with no JavaScript. Products with more than twelve get a "load more"
+   * button on top of that — progressive enhancement, matching Catalyst's
+   * behaviour without making the first twelve depend on hydration.
+   */
+  moreImagesCursor: string | null;
   videos: Array<{ title: string; url: string }>;
   customFields: Array<{ id: number; name: string; value: string }>;
   rating: number;
@@ -191,9 +219,16 @@ export async function getProduct(entityId: number): Promise<Product | null> {
     plainTextDescription: product.plainTextDescription,
     warranty: toSafeHtml(product.warranty, cdnHost, env.BIGCOMMERCE_STORE_HASH),
     condition: product.condition ?? null,
+    promotions: removeEdgesAndNodes(product.featuredPromotions).map((promotion) => ({
+      id: promotion.entityId,
+      text: promotion.text,
+    })),
     weight: product.weight ?? null,
     brand: product.brand ?? null,
     images,
+    moreImagesCursor: product.images.pageInfo.hasNextPage
+      ? (product.images.pageInfo.endCursor ?? null)
+      : null,
     videos: removeEdgesAndNodes(product.videos),
     customFields: removeEdgesAndNodes(product.customFields).map((field) => ({
       id: field.entityId,
@@ -437,4 +472,62 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
   }
 
   return ids.slice(0, limit);
+}
+
+const MoreImagesQuery = graphql(`
+  query MoreProductImages($entityId: Int!, $after: String!) {
+    site {
+      product(entityId: $entityId) {
+        images(first: 24, after: $after) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              url: urlTemplate(lossy: true)
+              altText
+              isDefault
+            }
+          }
+        }
+      }
+    }
+  }
+`);
+
+/**
+ * The next page of product images.
+ *
+ * Cached like the rest of the product: the cursor is a scalar argument, so an
+ * entry is shared by everyone viewing the same page of the same product's
+ * gallery. Catalyst refetched this per shopper.
+ *
+ * A larger page than the initial twelve on purpose — a shopper who asks for more
+ * images has told us they want them, and the payload is URLs rather than
+ * bytes, so one round trip beats three.
+ */
+export async function getMoreProductImages(
+  entityId: number,
+  after: string,
+): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
+  'use cache';
+  cacheLife('product');
+  cacheTag(tags.product(entityId), tags.products);
+
+  const data = await query({ document: MoreImagesQuery, variables: { entityId, after } });
+  const images = data.site.product?.images;
+
+  if (!images) {
+    return { images: [], nextCursor: null };
+  }
+
+  return {
+    images: removeEdgesAndNodes(images).map((image) => ({
+      src: image.url,
+      alt: image.altText,
+      isDefault: image.isDefault,
+    })),
+    nextCursor: images.pageInfo.hasNextPage ? (images.pageInfo.endCursor ?? null) : null,
+  };
 }

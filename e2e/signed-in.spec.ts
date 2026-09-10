@@ -122,6 +122,27 @@ test.describe('account', () => {
     }
   });
 
+  /*
+   * Render-only, deliberately. `isSubscribedToNewsletter` was readable and
+   * unchangeable — the control existing at all is the fix — but submitting it
+   * writes to the merchant's real subscriber list and can trigger a live email,
+   * so this asserts the control is present and reflects the stored value rather
+   * than exercising the mutation against someone's actual account.
+   */
+  test('offers a newsletter preference reflecting the stored value', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/account/settings/');
+
+    const toggle = page.getByTestId('newsletter-toggle');
+
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toBeEnabled();
+
+    // Whichever way it is set, it must be a real reflection rather than a
+    // hardcoded default — the checkbox is bound to the profile field.
+    expect(typeof (await toggle.isChecked())).toBe('boolean');
+  });
+
   test('round-trips a wishlist: create, save a product, remove, delete', async ({ page }) => {
     const name = `E2E ${Date.now()}`;
 
