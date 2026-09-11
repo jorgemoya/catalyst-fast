@@ -28,7 +28,7 @@ export async function OrderSummary({ summary }: { summary: CartSummary }) {
     formatCurrency(value.value, value.currencyCode);
 
   return (
-    <aside className="rounded-(--radius-control) border border-border p-6">
+    <aside className="rounded-(--radius-control) border border-border p-6" data-testid="cart-summary">
       <h2 className="text-lg font-semibold">{t('Cart.orderSummary')}</h2>
 
       <dl className="mt-4 flex flex-col gap-2 text-sm">

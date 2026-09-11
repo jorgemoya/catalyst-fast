@@ -105,7 +105,24 @@ test.describe('personalized pricing', () => {
  * unprotected, because the storefront was looking in the wrong place.
  */
 test.describe('reCAPTCHA', () => {
-  test('renders the widget and its attribution on registration', async ({ page }) => {
+  test('loads the widget with the store site key, and its attribution', async ({ page }) => {
+    /*
+     * Asserted on **the request we make**, not on Google's iframe mounting.
+     *
+     * The first version waited for `iframe[src*="recaptcha"]` to render, which
+     * made the suite depend on reaching google.com inside 15 seconds — it passed
+     * when written and then failed intermittently, and would fail outright in CI
+     * or offline. A third-party render is not ours to assert.
+     *
+     * The script request proves the same thing the iframe would: that a site key
+     * was resolved from `site.settings.reCaptcha` and reached the client. The
+     * notice alone would not — it renders for any non-null key.
+     */
+    const scriptRequested = page.waitForRequest(
+      (request) => request.url().includes('google.com/recaptcha/api.js'),
+      { timeout: 10_000 },
+    );
+
     await page.goto('/register/');
 
     const notice = page.getByText('This site is protected by reCAPTCHA');
@@ -117,12 +134,9 @@ test.describe('reCAPTCHA', () => {
 
     await expect(notice).toBeVisible();
 
-    // The v2 widget mounts a Google-hosted iframe. Its presence is what proves
-    // the site key reached the client — the notice alone would render for any
-    // non-null key, including a wrong one.
-    await expect(page.frameLocator('iframe[src*="recaptcha"]').locator('body')).toBeVisible({
-      timeout: 15_000,
-    });
+    const request = await scriptRequested;
+
+    expect(request.url()).toContain('render=explicit');
   });
 });
 

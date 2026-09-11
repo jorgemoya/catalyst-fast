@@ -340,3 +340,57 @@ export async function removeGiftCertificate(
     throw new CartError('gift-certificate-failed');
   }
 }
+
+const UpdateCartCurrencyMutation = graphql(`
+  mutation UpdateCartCurrency($input: UpdateCartCurrencyInput!) {
+    cart {
+      updateCartCurrency(input: $input) {
+        cart {
+          entityId
+          currencyCode
+        }
+      }
+    }
+  }
+`);
+
+/**
+ * Re-prices a cart in a new currency, returning the id of the resulting cart.
+ *
+ * **A BigCommerce cart carries its own currency**, fixed when it was created, so
+ * switching the *display* currency on the storefront does nothing to it — the
+ * shopper picks EUR, every product price changes, and the order summary stays in
+ * dollars. That was the reported symptom.
+ *
+ * **It returns a different cart.** Measured directly against the API: mutating
+ * `01c39e5f-…` (USD, $89) produced `f6c6c768-…` (EUR, €86.50) — a new entity, not
+ * an edit in place. So the caller must persist the returned id or the shopper
+ * keeps the old cart and nothing appears to change, which is exactly the bug this
+ * was meant to fix.
+ *
+ * `@shopperPreferences(displayCurrencyCode:)` is *not* an alternative here: the
+ * same probe showed it leaving `displayCurrencyCode` and `amountInDisplayCurrency`
+ * untouched on this store. The mutation is the only lever.
+ *
+ * Returns `null` rather than throwing when BigCommerce refuses. A cart can
+ * legitimately be unable to change currency — a gift certificate is denominated
+ * when it is purchased — and a currency switch must not strand the shopper on an
+ * error page with a cart they can no longer reach.
+ */
+export async function updateCartCurrency(
+  cartId: string,
+  currencyCode: string,
+): Promise<string | null> {
+  try {
+    const result = await mutate({
+      document: UpdateCartCurrencyMutation,
+      variables: { input: { cartEntityId: cartId, data: { currencyCode } } },
+    });
+
+    return result.cart.updateCartCurrency?.cart?.entityId ?? null;
+  } catch (error) {
+    console.error('[cart] currency', error);
+
+    return null;
+  }
+}

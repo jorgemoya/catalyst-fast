@@ -190,6 +190,39 @@ test.describe('currency', () => {
     expect(overlayPrecedesCta).toBe(true);
   });
 
+  /*
+   * The cart summary must follow the switch.
+   *
+   * A BigCommerce cart is denominated when it is created and ignores the display
+   * currency entirely, so switching to EUR repriced every product on the page and
+   * left the order summary in dollars. The display half had been built; the
+   * `updateCartCurrency` half had not.
+   */
+  test('switching currency reprices the cart summary, not just the products', async ({ page }) => {
+    await page.goto(SIMPLE_PRODUCT);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    await page.goto('/cart');
+
+    const summary = page.getByTestId('cart-summary');
+
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText('$');
+
+    const switcher = page.locator(CURRENCY_SELECT);
+
+    if ((await switcher.count()) === 0) {
+      test.skip(true, 'store offers a single currency');
+    }
+
+    await switcher.selectOption('EUR');
+
+    // The totals themselves, not just the line items above them.
+    await expect(summary).toContainText('€', { timeout: 15_000 });
+    await expect(summary).not.toContainText('$');
+  });
+
   test('a consenting shopper keeps the currency across visits', async ({ page, context }) => {
     await page.goto(SIMPLE_PRODUCT);
 

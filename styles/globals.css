@@ -28,6 +28,43 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /*
+   * Form controls inherit the theme.
+   *
+   * Browsers give `select`, `input` and `textarea` their own white background
+   * and near-black text regardless of the page, so in dark mode an unstyled
+   * control renders as a white box — and because the *page* colour is inherited
+   * for the option text, light-grey-on-white: invisible rather than merely
+   * ugly. Reported on the cart page's country dropdown.
+   *
+   * Fixed here rather than by adding `bg-background` to each call site, which is
+   * what six of the eleven selects in this codebase had already forgotten. A
+   * base rule cannot be forgotten by the twelfth, and Tailwind utilities still
+   * win when a control genuinely wants something else.
+   *
+   * `option` needs it separately: on Windows and Linux the popup list is painted
+   * by the OS from the option's own colours, not the select's.
+   */
+  select,
+  input,
+  textarea {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  option {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  /*
+   * The native dropdown arrow is drawn in the browser's own foreground colour,
+   * which stays dark in dark mode and disappears against a dark control.
+   */
+  select {
+    color-scheme: light dark;
+  }
+
   /* Visible focus for keyboard users only, on every interactive element. */
   :focus-visible {
     outline: 2px solid var(--color-primary);
