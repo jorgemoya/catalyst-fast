@@ -1,5 +1,6 @@
 import { composeProxies } from './proxies/compose';
 import { withRoutes } from './proxies/with-routes';
+import { withUcpProxy } from './proxies/with-ucp-proxy';
 
 /**
  * Only route resolution for now. Every additional proxy runs on every request,
@@ -11,7 +12,9 @@ import { withRoutes } from './proxies/with-routes';
  *   Phase 7 — analytics visit/visitor cookies
  *   Phase 8 — locale prefix + channel id
  */
-export const proxy = composeProxies(withRoutes);
+// `withUcpProxy` first: UCP paths must bypass locale prefixing and route
+// resolution entirely. See proxies/with-ucp-proxy.ts.
+export const proxy = composeProxies(withUcpProxy, withRoutes);
 
 export const config = {
   matcher: [
@@ -26,5 +29,10 @@ export const config = {
      * client-side navigation resolves the same vanity URL the server did.
      */
     '/((?!api|_next/static|_next/image|_vercel|favicon.ico|xmlsitemap.php|sitemap.xml|robots.txt).*)',
+    /*
+     * UCP endpoints, proxied to BigCommerce by `withUcpProxy`. Listed separately
+     * so the `api` exclusion above keeps applying to every other API route.
+     */
+    '/api/ucp/:path*',
   ],
 };

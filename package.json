@@ -22,6 +22,7 @@
     "check-graphql": "gql.tada check",
     "cache-audit": "tsx ./scripts/cache-audit.ts",
     "dead-exports": "tsx ./scripts/dead-exports.ts",
+    "parity": "tsx ./scripts/catalyst-parity.ts",
     "test": "vitest run",
     "e2e": "playwright test",
     "test:watch": "vitest"

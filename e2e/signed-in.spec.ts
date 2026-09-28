@@ -48,6 +48,28 @@ test.describe('sign in', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('My account');
   });
 
+  /*
+   * The session token must be a **browser-session** cookie: no `Expires`, so it
+   * counts as Essential under cookie consent. Auth.js sets a 30-day expiry by
+   * default; upstream Catalyst strips it (1.11.0) and 1.12.1 (#3231) keeps other
+   * configured attributes while doing so. This repo had never ported it.
+   * Playwright reports a session cookie as `expires === -1`.
+   */
+  test('issues the session token as a browser-session cookie', async ({ page, context }) => {
+    await signIn(page);
+
+    const tokens = (await context.cookies()).filter((cookie) =>
+      /^(__Secure-)?authjs\.session-token(\.\d+)?$/u.test(cookie.name),
+    );
+
+    expect(tokens.length).toBeGreaterThan(0);
+
+    for (const token of tokens) {
+      expect(token.expires).toBe(-1);
+      expect(token.httpOnly).toBe(true);
+    }
+  });
+
   test('merges the guest cart into the customer cart', async ({ page }) => {
     /*
      * The cart merge, which is BigCommerce's to perform: `login` is given

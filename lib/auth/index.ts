@@ -4,7 +4,10 @@ import NextAuth, { type NextAuthConfig } from 'next-auth';
 // `types.d.ts` only applies once the module itself is part of the program.
 import 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
+
+import { getSessionTokenCookieOptions } from './session-token-cookie-options';
 
 import { clearCartId, getCartId, setCartId } from '~/lib/cart/session';
 
@@ -224,4 +227,37 @@ export const config = {
   },
 } satisfies NextAuthConfig;
 
-export const { handlers, signIn, signOut, auth } = NextAuth(config);
+const { handlers, signIn: authSignIn, signOut, auth } = NextAuth(config);
+
+export { auth, handlers, signOut };
+
+/** Matches the session token and its chunks (`.0`, `.1`) for large JWTs. */
+const SESSION_TOKEN_NAME_RE = /^(__Secure-)?authjs\.session-token(\.\d+)?$/u;
+
+/*
+ * Re-sets the session token as a browser-session cookie after Auth.js writes
+ * it. Auth.js sets `Expires` when `signIn` runs inside a Server Action; this
+ * strips only the lifetime so the token stays Essential under cookie consent.
+ * See `session-token-cookie-options.ts`.
+ */
+async function patchSessionTokenCookies(): Promise<void> {
+  const cookieJar = await cookies();
+
+  for (const { name, value } of cookieJar.getAll()) {
+    if (SESSION_TOKEN_NAME_RE.test(name) && value) {
+      cookieJar.set(name, value, getSessionTokenCookieOptions(name, config as NextAuthConfig));
+    }
+  }
+}
+
+/*
+ * `finally`, because `signIn` reports success by *throwing* a redirect unless
+ * `redirect: false` is passed — the patch has to run on that path too.
+ */
+export const signIn = async (...args: Parameters<typeof authSignIn>) => {
+  try {
+    return await authSignIn(...args);
+  } finally {
+    await patchSessionTokenCookies();
+  }
+};

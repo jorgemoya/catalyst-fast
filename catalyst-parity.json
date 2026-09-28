@@ -1,0 +1,43 @@
+{
+  "$comment": "Parity ledger against upstream BigCommerce Catalyst (core). `baseline` is the release this repo was built from. Every changelog entry since then gets a decision keyed by its PR number, so `pnpm parity` only reports what is still undecided. Statuses: ported | not-applicable | pending.",
+  "upstream": {
+    "repo": "../catalyst",
+    "remote": "origin",
+    "tagPrefix": "@bigcommerce/catalyst-core@"
+  },
+  "baseline": "1.12.1",
+  "decisions": {
+    "3170": {
+      "status": "ported",
+      "note": "Cloudflare Workers KV adapter — lib/kv/adapters/cloudflare-kv.ts, selected in createKVAdapter via CATALYST_ROUTES_KV."
+    },
+    "3202": {
+      "status": "ported",
+      "note": "Next.js 16.3.4 — already pinned in package.json."
+    },
+    "3209": {
+      "status": "ported",
+      "note": "Date option earliest/latest/limitDateBy — domain/product-options.ts maps bounds, option-fields renders native min/max. Upstream also validates client-side only."
+    },
+    "3221": {
+      "status": "not-applicable",
+      "note": "X-Correlation-ID poisoning the Next Data Cache. This repo sends no correlation header and caches with `use cache` over `fetch(no-store)`, so the Data Cache key is never involved."
+    },
+    "3215": {
+      "status": "ported",
+      "note": "proxies/with-ucp-proxy.ts (first in the chain) + lib/ucp/upstream.ts; header allow-lists kept verbatim. Matcher adds /api/ucp/:path*. Verified live: responses match BigCommerce's direct responses."
+    },
+    "3224": {
+      "status": "ported",
+      "note": "stripTrailingSlash in lib/ucp/upstream.ts."
+    },
+    "3231": {
+      "status": "ported",
+      "note": "lib/auth/session-token-cookie-options.ts + patchSessionTokenCookies wrapping signIn in lib/auth/index.ts. Also closes the pre-existing 1.11.0 gap (session token was a 30-day persistent cookie)."
+    },
+    "3194": {
+      "status": "not-applicable",
+      "note": "Upstream's reusable GitHub Actions preview-deployment workflow for its own monorepo; no storefront behaviour."
+    }
+  }
+}
