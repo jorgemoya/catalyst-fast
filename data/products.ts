@@ -1,7 +1,9 @@
 import { cacheLife, cacheTag } from 'next/cache';
 
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
@@ -56,8 +58,11 @@ const NewestProductsQuery = graphql(
 );
 
 /** `currency` is explicit so the entry is keyed by it and shared per currency. */
-export async function getFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
-  'use cache';
+async function loadFeaturedProducts(
+  fetchCatalog: CatalogFetcher,
+  currency: string,
+  first = 8,
+): Promise<ProductCard[]> {
   cacheLife('product');
   cacheTag(tags.products);
 
@@ -65,9 +70,11 @@ export async function getFeaturedProducts(currency: string, first = 8): Promise<
   // settings resolves from its own single shared entry rather than being
   // refetched per list.
   const [data, settings] = await Promise.all([
-    query({ document: FeaturedProductsQuery, variables: { currencyCode: toCurrencyCode(currency), first },
-    locale: await activeLocale(),
-  }),
+    fetchCatalog({
+      document: FeaturedProductsQuery,
+      variables: { currencyCode: toCurrencyCode(currency), first },
+      locale: await activeLocale(),
+    }),
     getStoreSettings(),
   ]);
 
@@ -76,19 +83,74 @@ export async function getFeaturedProducts(currency: string, first = 8): Promise<
   );
 }
 
-export async function getNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedFeaturedProducts(currency, first)
+    : sharedFeaturedProducts(currency, first);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
   'use cache';
+
+  return loadFeaturedProducts(query, currency, first);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
+  'use cache: private';
+
+  return loadFeaturedProducts(restrictedQuery, currency, first);
+}
+
+async function loadNewestProducts(
+  fetchCatalog: CatalogFetcher,
+  currency: string,
+  first = 8,
+): Promise<ProductCard[]> {
   cacheLife('product');
   cacheTag(tags.products);
 
   const [data, settings] = await Promise.all([
-    query({ document: NewestProductsQuery, variables: { currencyCode: toCurrencyCode(currency), first },
-    locale: await activeLocale(),
-  }),
+    fetchCatalog({
+      document: NewestProductsQuery,
+      variables: { currencyCode: toCurrencyCode(currency), first },
+      locale: await activeLocale(),
+    }),
     getStoreSettings(),
   ]);
 
   return removeEdgesAndNodes(data.site.newestProducts).map((product) =>
     toProductCard(product, { taxDisplay: settings.taxDisplay.plp, inventory: settings.inventory }),
   );
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedNewestProducts(currency, first)
+    : sharedNewestProducts(currency, first);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
+  'use cache';
+
+  return loadNewestProducts(query, currency, first);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
+  'use cache: private';
+
+  return loadNewestProducts(restrictedQuery, currency, first);
 }

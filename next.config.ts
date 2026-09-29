@@ -38,6 +38,19 @@ const nextConfig: NextConfig = {
   // instant-navigation validation that keeps us honest about what's in the shell.
   cacheComponents: true,
 
+  experimental: {
+    /*
+     * Prerender workers, capped. Next defaults to one per CPU core, and each
+     * worker is its own process with its own BigCommerce semaphore
+     * (`BC_MAX_CONCURRENCY`, 16) — so 11 workers could have 176 requests in
+     * flight at once. Measured: back-to-back builds exhausted the store's rate
+     * limit, retries ran out, and `next build` failed on a 429 mid-prerender.
+     * Two workers prerender all 171 pages in ~11s, so the cap costs nearly
+     * nothing. `BUILD_WORKERS` raises it for stores with a higher limit.
+     */
+    cpus: Number(process.env.BUILD_WORKERS) || 2,
+  },
+
   // Prefetch the static parts of a route ahead of navigation.
   partialPrefetching: true,
 

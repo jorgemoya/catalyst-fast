@@ -1,8 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+
+import { navigateDocument } from '~/lib/navigation/document-navigation';
 
 /**
  * Language picker.
@@ -27,8 +28,17 @@ export function LocaleSwitcher({
   defaultLocale: string;
 }) {
   const t = useTranslations();
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  // Back/forward can restore this page from the bfcache mid-navigation, which
+  // would leave the control disabled.
+  useEffect(() => {
+    const reset = () => setPending(false);
+
+    window.addEventListener('pageshow', reset);
+
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
 
   if (locales.length < 2) {
     return null;
@@ -70,9 +80,13 @@ export function LocaleSwitcher({
         onChange={(event) => {
           const href = hrefFor(event.target.value);
 
-          startTransition(() => {
-            router.push(href);
-          });
+          /*
+           * A document load, not `router.push`: locale is a root param, and a
+           * soft navigation across one duplicates the page — see
+           * `lib/navigation/document-navigation.ts`.
+           */
+          setPending(true);
+          navigateDocument(href);
         }}
         value={current}
       >

@@ -57,10 +57,18 @@ export function detectLocale(request: NextRequest): DetectedLocale {
  * Applied to every rewrite target the proxy produces. `/category/23` becomes
  * `/en/category/23`, which is where the route actually lives now.
  */
-export function withLocalePrefix(pathname: string, locale: string): string {
+export function withLocalePrefix(
+  pathname: string,
+  locale: string,
+  /**
+   * The catalog audience, the second root segment: `app/[locale]/[audience]/…`.
+   * Defaults to `public`, which is what every guest gets. See `proxies/audience.ts`.
+   */
+  audience: 'public' | 'restricted' = 'public',
+): string {
   const normalized = pathname.startsWith('/') ? pathname : `/${pathname}`;
 
-  return `/${locale}${normalized === '/' ? '' : normalized}`;
+  return `/${locale}/${audience}${normalized === '/' ? '' : normalized}`;
 }
 
 /**

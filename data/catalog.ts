@@ -4,7 +4,9 @@ import { cacheLife, cacheTag } from 'next/cache';
 import type { Breadcrumb } from '~/domain/breadcrumbs';
 import { toSafeHtml } from '~/domain/html';
 import { fromBcSort, type SortValue } from '~/domain/listing-params';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
@@ -128,12 +130,16 @@ const BrandQuery = graphql(`
 
 const EMPTY_SEO = { pageTitle: '', metaDescription: '', metaKeywords: '' };
 
-export async function getCategory(entityId: number): Promise<CategoryPage | null> {
-  'use cache';
+async function loadCategory(
+  fetchCatalog: CatalogFetcher,
+  entityId: number,
+): Promise<CategoryPage | null> {
   cacheLife('product');
   cacheTag(tags.category(entityId), tags.categories);
 
-  const data = await query({ document: CategoryQuery, variables: { entityId },
+  const data = await fetchCatalog({
+    document: CategoryQuery,
+    variables: { entityId },
     locale: await activeLocale(),
   });
   const category = data.site.category;
@@ -167,12 +173,41 @@ export async function getCategory(entityId: number): Promise<CategoryPage | null
   };
 }
 
-export async function getBrand(entityId: number): Promise<BrandPage | null> {
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getCategory(entityId: number): Promise<CategoryPage | null> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedCategory(entityId)
+    : sharedCategory(entityId);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedCategory(entityId: number): Promise<CategoryPage | null> {
   'use cache';
+
+  return loadCategory(query, entityId);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedCategory(entityId: number): Promise<CategoryPage | null> {
+  'use cache: private';
+
+  return loadCategory(restrictedQuery, entityId);
+}
+
+async function loadBrand(
+  fetchCatalog: CatalogFetcher,
+  entityId: number,
+): Promise<BrandPage | null> {
   cacheLife('product');
   cacheTag(tags.brand(entityId), tags.brands);
 
-  const data = await query({ document: BrandQuery, variables: { entityId },
+  const data = await fetchCatalog({
+    document: BrandQuery,
+    variables: { entityId },
     locale: await activeLocale(),
   });
   const brand = data.site.brand;
@@ -187,6 +222,31 @@ export async function getBrand(entityId: number): Promise<BrandPage | null> {
     path: brand.path,
     seo: brand.seo ?? EMPTY_SEO,
   };
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getBrand(entityId: number): Promise<BrandPage | null> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedBrand(entityId)
+    : sharedBrand(entityId);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedBrand(entityId: number): Promise<BrandPage | null> {
+  'use cache';
+
+  return loadBrand(query, entityId);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedBrand(entityId: number): Promise<BrandPage | null> {
+  'use cache: private';
+
+  return loadBrand(restrictedQuery, entityId);
 }
 
 /**
@@ -221,8 +281,7 @@ export async function getCategoryIds(limit = STATIC_PARAMS_LIMIT): Promise<numbe
   cacheLife('navigation');
   cacheTag(tags.categories);
 
-  const data = await query({ document: CategoryIdsQuery,
-  });
+  const data = await query({ document: CategoryIdsQuery });
 
   // Breadth-first: top-level categories carry the most traffic, so they are the
   // ones worth prerendering when the limit bites.
@@ -254,7 +313,7 @@ export async function getBrandIds(limit = STATIC_PARAMS_LIMIT): Promise<number[]
     const data: ResultOf<typeof BrandIdsQuery> = await query({
       document: BrandIdsQuery,
       variables: { first: Math.min(BRANDS_MAX_PAGE_SIZE, limit - ids.length), after },
-  });
+    });
 
     ids.push(...removeEdgesAndNodes(data.site.brands).map((brand) => brand.entityId));
 

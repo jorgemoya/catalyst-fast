@@ -357,6 +357,12 @@ test.describe('server toast', () => {
 
     // Clearing happens in the browser — the server may not mutate cookies during
     // render — so the cookie must be gone by the time the next page loads.
+    // Waited for rather than assumed: the toast is visible from the server HTML
+    // before hydration runs the clear, and under a loaded parallel run the next
+    // `goto` could beat it.
+    await expect
+      .poll(async () => (await context.cookies()).some((cookie) => cookie.name === 'cf.toast'))
+      .toBe(false);
     await page.goto('/cart/');
     await expect(page.getByTestId('server-toast')).toHaveCount(0);
   });

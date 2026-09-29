@@ -3,14 +3,13 @@ import { withRoutes } from './proxies/with-routes';
 import { withUcpProxy } from './proxies/with-ucp-proxy';
 
 /**
- * Only route resolution for now. Every additional proxy runs on every request,
- * ahead of Next's own routing — including prefetches and RSC navigations — so
- * each one is a tax on the whole storefront. Add sparingly:
+ * Every proxy runs on every request, ahead of Next's own routing — including
+ * prefetches and RSC navigations — so each one is a tax on the whole
+ * storefront. Add sparingly.
  *
- *   Phase 4 — anonymous session (guest cart id)
- *   Phase 6 — auth + the /account protected-path redirect
- *   Phase 7 — analytics visit/visitor cookies
- *   Phase 8 — locale prefix + channel id
+ * `withRoutes` does the real work: locale prefix, catalog audience
+ * (`public`, or `restricted` for groups in `RESTRICTED_CATALOG_GROUPS`),
+ * maintenance, redirects, and the rewrite to `app/[locale]/[audience]/…`.
  */
 // `withUcpProxy` first: UCP paths must bypass locale prefixing and route
 // resolution entirely. See proxies/with-ucp-proxy.ts.

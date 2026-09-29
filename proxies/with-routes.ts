@@ -1,7 +1,7 @@
 import { type NextFetchEvent, type NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { query } from '~/lib/bigcommerce';
+import { bc, query } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { kv } from '~/lib/kv';
 import { channelFor } from '~/lib/config/channels';
@@ -15,7 +15,9 @@ import {
 } from './locale';
 import { kvKey, STORE_STATUS_KEY } from '~/lib/kv/keys';
 
+import { AUDIENCE_HEADER, type Audience, resolveAudience } from './audience';
 import type { ProxyFactory } from './compose';
+import { createCustomerRouteMemo } from './customer-route-memo';
 import { sameInternalUrl, toRouteKeyPath } from './route-key';
 
 /**
@@ -35,11 +37,13 @@ import { sameInternalUrl, toRouteKeyPath } from './route-key';
  *
  *     The narrow case that motivated the bypass is customer-group **catalog
  *     visibility**, where a group-restricted product resolves to `null` for
- *     guests. This proxy does not support it, deliberately — see the note on
- *     `getRouteInfo` below.
- *  2. **No locale or analytics concerns.** v1 is single-locale, and the
- *     product-viewed event moves to a client beacon rather than firing from a
- *     `waitUntil` on every non-prefetch product request.
+ *     guests. That is now opt-in and scoped: only shoppers in a group listed in
+ *     `RESTRICTED_CATALOG_GROUPS` resolve as themselves, uncached, and are
+ *     rewritten to the `restricted` audience. Everyone else shares the cache.
+ *     See `proxies/audience.ts` and `lib/audience.ts`.
+ *  2. **No analytics concerns.** The product-viewed event moves to a client
+ *     beacon rather than firing from a `waitUntil` on every non-prefetch
+ *     product request.
  *
  * Kept exactly: the stale-while-revalidate shape (serve stale, refresh in
  * background; block only on a cold miss) and the trailing-slash normalization,
@@ -121,6 +125,33 @@ const GetStoreStatusQuery = graphql(`
 
 const getRoute = async (path: string, channelId?: string) => {
   const data = await query({ document: GetRouteQuery, variables: { path }, channelId });
+
+  return data.site.route;
+};
+
+/*
+ * The same lookup made *as a customer* — for the restricted audience only.
+ * `query()` is token-free by construction, so this goes through the client
+ * directly; it is uncached and its result is never written to KV.
+ */
+const customerRouteMemo = createCustomerRouteMemo<RouteResult>();
+
+type RouteResult = Awaited<ReturnType<typeof fetchRouteAsCustomer>>;
+
+// Memoised per shopper for seconds — see `proxies/customer-route-memo.ts`.
+const getRouteAsCustomer = (path: string, channelId: string, customerAccessToken: string) =>
+  customerRouteMemo(customerAccessToken, `${channelId}:${path}`, () =>
+    fetchRouteAsCustomer(path, channelId, customerAccessToken),
+  );
+
+const fetchRouteAsCustomer = async (path: string, channelId: string, customerAccessToken: string) => {
+  const { data } = await bc.request({
+    document: GetRouteQuery,
+    variables: { path },
+    channelId,
+    customerAccessToken,
+    fetchOptions: { cache: 'no-store' },
+  });
 
   return data.site.route;
 };
@@ -245,7 +276,7 @@ const getRouteInfo = async (
    * the page is `/garden/`, not `/fr/garden/`. Looking up the prefixed path
    * would resolve to nothing and 404 every non-default locale.
    */
-  locale: { channelId: string; pathname: string },
+  locale: { channelId: string; pathname: string; customerAccessToken?: string },
 ) => {
   const channelId = locale.channelId;
 
@@ -275,33 +306,44 @@ const getRouteInfo = async (
       routeCache = await updateRouteCache(pathname, channelId, event);
     }
 
+    const guestRoute = RouteCacheSchema.safeParse(routeCache);
+    const guestFound = guestRoute.success && Boolean(guestRoute.data.route?.node ?? guestRoute.data.route?.redirect);
+
+    if (locale.customerAccessToken && !guestFound) {
+      /*
+       * **Restricted audience: re-resolve as the shopper, only on a guest miss.**
+       *
+       * BigCommerce resolves a route against the caller's catalog visibility, so
+       * the shared guest entry answers "not found" for a product only this
+       * shopper's group can see. Their answer is theirs — writing it to the
+       * shared KV entry would publish a restricted route to every guest — so it
+       * is fetched fresh, and never stored.
+       *
+       * Only on a miss. This used to run for *every* restricted request, and
+       * the proxy sees every prefetch: measured, 22–36 BigCommerce calls per
+       * page view, two thirds of them route lookups for links the shopper never
+       * clicked. A path guests can resolve is the same page for the shopper; if
+       * their group sees *less* than guests, the page's own restricted catalog
+       * read is authoritative and 404s it.
+       */
+      routeCache = {
+        route: await getRouteAsCustomer(pathname, channelId, locale.customerAccessToken),
+        expiryTime: Date.now(),
+      };
+    }
+
     const parsedStatus = StorefrontStatusCacheSchema.safeParse(statusCache);
     const parsedRoute = RouteCacheSchema.safeParse(routeCache);
     const route = parsedRoute.success ? parsedRoute.data.route : undefined;
 
     /*
-     * Customer-group catalog visibility is **not supported here**, on purpose.
-     *
-     * There used to be a negative-result fallback at this point (plan §6.3): when
-     * the cached answer was "not found" and the request carried a session cookie,
-     * re-resolve the route in case the shopper's group could see something guests
-     * cannot. It was removed because it never worked and could not have.
-     *
-     * `getRoute` fetches through `query()`, which by design carries no customer
-     * credential (§3.5) — so the "authenticated" retry re-ran the *identical
-     * guest query* and got the identical `null`. Measured: an authenticated
-     * request to a non-resolving path issued one BigCommerce query every time,
-     * uncached, and still 404'd. Guests, by contrast, cost zero after the first.
-     * That is an unbounded origin-load amplifier on exactly the paths crawlers
-     * and scanners hammer, in exchange for nothing.
-     *
-     * Making it real needs the group id *in the proxy*, which means either
-     * decoding the JWT here (shipping AUTH_SECRET into middleware) or a separate
-     * signed cookie carrying just the group — plus group-keyed catalog caching
-     * downstream, since resolving the route only helps if the PDP and listings
-     * can render the product too. That is a coherent feature, but it is a
-     * feature, not a patch, and it is only worth building for a store that
-     * actually restricts catalog by group.
+     * No negative-result fallback for everyone else. There used to be one (plan
+     * §6.3): a "not found" plus any session cookie re-resolved the route. It
+     * fetched through `query()`, which carries no customer credential, so it
+     * re-ran the identical guest query and got the identical `null` — one
+     * uncached BigCommerce call per miss, on exactly the paths crawlers and
+     * scanners hammer, for nothing. The restricted branch above is the working
+     * version of the same idea, gated on a group that can actually differ.
      */
 
     return {
@@ -375,10 +417,13 @@ const APP_OWNED_PATH = /^\/(?:cart|checkout|search|login|register|logout|forgot-
  * `NextResponse.rewrite` takes `request.headers` for exactly this: it mutates
  * what the downstream handler receives, not what the browser gets back.
  */
-const localeHeaders = (request: NextRequest, locale: string) => {
+const localeHeaders = (request: NextRequest, locale: string, audience: Audience) => {
   const headers = new Headers(request.headers);
 
   headers.set(LOCALE_HEADER, locale);
+  // Server Actions and Route Handlers cannot read the `[audience]` root param,
+  // so it travels as a header too — see `lib/audience.ts`.
+  headers.set(AUDIENCE_HEADER, audience);
 
   return { request: { headers } };
 };
@@ -412,7 +457,14 @@ export const withRoutes: ProxyFactory = () => async (request, event) => {
     return NextResponse.redirect(canonical, { status: 301 });
   }
 
-  const localized = (target: string): string => withLocalePrefix(target, locale);
+  /*
+   * Which catalog to render. \`restricted\` only for a signed-in shopper in one of
+   * \`RESTRICTED_CATALOG_GROUPS\`; the guest path returns before touching the
+   * session. See \`proxies/audience.ts\`.
+   */
+  const { audience, customerAccessToken } = await resolveAudience(request);
+
+  const localized = (target: string): string => withLocalePrefix(target, locale, audience);
 
   if (APP_OWNED_PATH.test(pathname)) {
     // Route handlers stay at the top level and must keep their unprefixed path;
@@ -423,7 +475,7 @@ export const withRoutes: ProxyFactory = () => async (request, event) => {
 
     appUrl.search = request.nextUrl.search;
 
-    return NextResponse.rewrite(appUrl, localeHeaders(request, locale));
+    return NextResponse.rewrite(appUrl, localeHeaders(request, locale, audience));
   }
 
   if (INTERNAL_ROUTE_ONLY.test(pathname) && !isRscRequest(request)) {
@@ -433,6 +485,7 @@ export const withRoutes: ProxyFactory = () => async (request, event) => {
   const { route, status } = await getRouteInfo(request, event, {
     channelId: channelFor(locale).channelId,
     pathname,
+    customerAccessToken,
   });
 
   if (status === 'MAINTENANCE') {
@@ -537,5 +590,5 @@ export const withRoutes: ProxyFactory = () => async (request, event) => {
 
   rewriteUrl.search = request.nextUrl.search;
 
-  return NextResponse.rewrite(rewriteUrl, localeHeaders(request, locale));
+  return NextResponse.rewrite(rewriteUrl, localeHeaders(request, locale, audience));
 };

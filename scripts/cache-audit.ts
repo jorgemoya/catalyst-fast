@@ -43,6 +43,34 @@ const BANNED_IN_PUBLIC = [
 /** Explicit, reasoned exemption. The em dash and reason are required. */
 const DYNAMIC_OPT_OUT = /\/\/\s*cache-audit:\s*dynamic\s*—\s*\S/;
 
+/**
+ * An audience dispatcher: an uncached export that picks between a shared cached
+ * read and a customer-group private one (see `lib/audience.ts`). Accepted only
+ * when *both* branches are actually present below it — see the check in `audit`.
+ */
+const DISPATCH_OPT_OUT = /\/\/\s*cache-audit:\s*dispatch\s*—\s*\S/;
+const PUBLIC_DIRECTIVE = /^\s*['"]use cache(?::\s*remote)?['"]\s*;/m;
+
+/**
+ * Every async function (exported or not) with its body, approximated as the text
+ * up to the next async function. Used for the `restrictedQuery` rule, which has
+ * to see the private wrappers — they are deliberately not exported.
+ */
+function* allFunctions(source: string): Generator<{ name: string; body: string }> {
+  const matches = [...source.matchAll(/(?:export\s+)?async\s+function\s+(\w+)/g)];
+
+  for (const [index, match] of matches.entries()) {
+    if (!match[1] || match.index === undefined) {
+      continue;
+    }
+
+    yield {
+      name: match[1],
+      body: source.slice(match.index, matches[index + 1]?.index ?? source.length),
+    };
+  }
+}
+
 interface Finding {
   file: string;
   message: string;
@@ -147,7 +175,47 @@ async function audit(): Promise<Finding[]> {
      *
      * which keeps the exemption next to the code and forces a reason.
      */
+    /*
+     * `restrictedQuery` fetches with the shopper's token. Its results belong to
+     * that shopper, so it may only run inside a `'use cache: private'` scope —
+     * never a shared one, where one customer-group catalog would be served to
+     * everybody. This is the rule the whole restricted-audience design rests on.
+     */
+    for (const { name, body } of allFunctions(source)) {
+      if (!/\brestrictedQuery\b/.test(body)) {
+        continue;
+      }
+
+      if (!PRIVATE_DIRECTIVE.test(body) || PUBLIC_DIRECTIVE.test(body)) {
+        findings.push({
+          file: rel,
+          message: `${name} uses restrictedQuery outside a 'use cache: private' scope — a shopper's token-scoped catalog must never reach a shared cache`,
+        });
+      }
+    }
+
     for (const { name, body } of exportedFunctions(source)) {
+      /*
+       * The marker must sit in this function's *own* leading comment. `body`
+       * runs up to the next export, so it also contains the comment above the
+       * *following* function — testing the whole slice attributed one
+       * dispatcher's marker to the export before it.
+       */
+      const leading = body.slice(0, body.indexOf(`function ${name}`));
+
+      if (DISPATCH_OPT_OUT.test(leading)) {
+        // A dispatcher is only legitimate if it really does have a shared cached
+        // branch *and* a private one; otherwise it is an uncached read in disguise.
+        if (!(PUBLIC_DIRECTIVE.test(body) && PRIVATE_DIRECTIVE.test(body))) {
+          findings.push({
+            file: rel,
+            message: `${name} is marked as an audience dispatcher but lacks a public or a private cached branch`,
+          });
+        }
+
+        continue;
+      }
+
       if (CACHE_DIRECTIVE.test(body) || DYNAMIC_OPT_OUT.test(body)) {
         continue;
       }

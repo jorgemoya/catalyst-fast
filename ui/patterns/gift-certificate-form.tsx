@@ -6,7 +6,7 @@ import { useForm } from '@conform-to/react';
 import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { useActionState, useMemo } from 'react';
 
-import { purchaseGiftCertificate } from '~/app/[locale]/(storefront)/gift-certificates/_actions/gift-certificate';
+import { purchaseGiftCertificate } from '~/app/[locale]/[audience]/(storefront)/gift-certificates/_actions/gift-certificate';
 import {
   type ExpiryUnit,
   GIFT_CERTIFICATE_THEMES,

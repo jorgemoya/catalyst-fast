@@ -8,7 +8,8 @@ import { z } from 'zod';
  * build. That data belongs in a `'use cache'` function in `data/settings.ts`
  * with a short `cacheLife` and a webhook-driven `revalidateTag`.
  *
- * Locales are excluded for the same reason (and because v1 is single-locale).
+ * Locales are excluded for the same reason — they are read live, see
+ * `data/locales.ts`.
  */
 export const buildConfigSchema = z.object({
   urls: z.object({

@@ -2,7 +2,7 @@ import { getT } from '~/lib/i18n/server';
 import type { Metadata } from 'next';
 
 
-import { logout } from '../_actions/logout';
+import { LogoutForm } from './_components/logout-form';
 
 /**
  * Sign out.
@@ -27,14 +27,7 @@ export default async function LogoutPage() {
   return (
     <div className="page-container flex flex-col items-center gap-4 py-24 text-center">
       <h1 className="text-2xl font-semibold tracking-tight">{t('Auth.signOutConfirm')}</h1>
-      <form action={logout}>
-        <button
-          className="h-11 rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-          type="submit"
-        >
-          {t('Auth.signOut')}
-        </button>
-      </form>
+      <LogoutForm />
     </div>
   );
 }

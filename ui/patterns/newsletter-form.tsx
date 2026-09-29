@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useActionState } from 'react';
 
-import { subscribeToNewsletter } from '~/app/[locale]/(storefront)/_actions/newsletter';
+import { subscribeToNewsletter } from '~/app/[locale]/[audience]/(storefront)/_actions/newsletter';
 
 /**
  * Newsletter signup.

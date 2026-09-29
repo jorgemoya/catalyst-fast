@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useState } from 'react';
 
-import { loadMoreImages } from '~/app/[locale]/(storefront)/product/[id]/_actions/load-images';
+import { loadMoreImages } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/load-images';
 import type { ProductImage } from '~/data/product';
 import { cn } from '~/lib/cn';
 import { Image } from '~/ui/primitives/image';

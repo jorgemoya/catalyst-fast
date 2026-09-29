@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useActionState, useState, useSyncExternalStore } from 'react';
 
-import { addToCart } from '~/app/[locale]/(storefront)/product/[id]/_actions/add-to-cart';
+import { addToCart } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
   MAX_COMPARE_SELECTION,
   compareHref,

@@ -1,7 +1,9 @@
 import { cacheLife, cacheTag } from 'next/cache';
 
 import { type Price, toPrice } from '~/domain/price';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { PricingFragment } from '~/lib/bigcommerce/fragments/pricing';
 import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
@@ -61,17 +63,17 @@ export interface OptionValueId {
  * the cookie inside this body would instead make the entry per-shopper, which
  * is the anti-pattern plan §7.5 names.
  */
-export async function getProductPrice(
+async function loadProductPrice(
+  fetchCatalog: CatalogFetcher,
   entityId: number,
   currency: string,
   optionValueIds: readonly OptionValueId[] = [],
 ): Promise<Price | undefined> {
-  'use cache: remote';
   cacheLife('price');
   cacheTag(tags.productPrice(entityId), tags.product(entityId), tags.prices);
 
   const [data, settings] = await Promise.all([
-    query({
+    fetchCatalog({
       document: ProductPricesQuery,
       variables: {
         entityId,
@@ -92,6 +94,43 @@ export async function getProductPrice(
   return toPrice(data.site.product, settings.taxDisplay.pdp);
 }
 
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getProductPrice(
+  entityId: number,
+  currency: string,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<Price | undefined> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedProductPrice(entityId, currency, optionValueIds)
+    : sharedProductPrice(entityId, currency, optionValueIds);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedProductPrice(
+  entityId: number,
+  currency: string,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<Price | undefined> {
+  'use cache: remote';
+
+  return loadProductPrice(query, entityId, currency, optionValueIds);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedProductPrice(
+  entityId: number,
+  currency: string,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<Price | undefined> {
+  'use cache: private';
+
+  return loadProductPrice(restrictedQuery, entityId, currency, optionValueIds);
+}
+
 /**
  * Converts a `{ optionId: valueId }` selection into BigCommerce's pair form.
  *
@@ -105,7 +144,5 @@ export const toOptionValueIds = (selection: Record<string, string>): OptionValue
       optionEntityId: Number(optionId),
       valueEntityId: Number(valueId),
     }))
-    .filter(
-      (pair) => Number.isFinite(pair.optionEntityId) && Number.isFinite(pair.valueEntityId),
-    )
+    .filter((pair) => Number.isFinite(pair.optionEntityId) && Number.isFinite(pair.valueEntityId))
     .sort((a, b) => a.optionEntityId - b.optionEntityId || a.valueEntityId - b.valueEntityId);

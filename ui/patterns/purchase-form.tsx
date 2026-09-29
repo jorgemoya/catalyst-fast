@@ -4,11 +4,11 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { type ReactNode, useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 
-import { addToCart } from '~/app/[locale]/(storefront)/product/[id]/_actions/add-to-cart';
+import { addToCart } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
   getVariantSnapshot,
   type VariantSnapshot,
-} from '~/app/[locale]/(storefront)/product/[id]/_actions/get-variant';
+} from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/get-variant';
 import {
   type CtaState,
   toBackorderDisplay,

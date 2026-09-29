@@ -9,6 +9,8 @@ import { CustomFields } from '~/ui/patterns/custom-fields';
 import { TextField } from '~/ui/patterns/form-field';
 import { RecaptchaField } from '~/ui/patterns/recaptcha-field';
 
+import { isDocumentNavigation, useDocumentNavigation } from '~/lib/navigation/document-navigation';
+
 import { register } from '../../_actions/register';
 
 export function RegisterForm({
@@ -21,7 +23,9 @@ export function RegisterForm({
   const t = useTranslations();
 
   const [result, formAction, isPending] = useActionState(register, null);
-  const errors = result?.error ?? {};
+
+  useDocumentNavigation(result);
+  const errors = (!isDocumentNavigation(result) && result?.error) || {};
   const formErrors = errors[''] ?? [];
 
   return (

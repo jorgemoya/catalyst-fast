@@ -7,6 +7,8 @@ import { useActionState } from 'react';
 
 import { Link } from '~/ui/primitives/link';
 
+import { isDocumentNavigation, useDocumentNavigation } from '~/lib/navigation/document-navigation';
+
 import { login } from '../../_actions/login';
 
 /**
@@ -26,7 +28,9 @@ export function LoginForm() {
   const params = useSearchParams();
   const [result, formAction, isPending] = useActionState(login, null);
 
-  const errors = result?.error ?? {};
+  useDocumentNavigation(result);
+
+  const errors = (!isDocumentNavigation(result) && result?.error) || {};
   const formErrors = errors[''] ?? [];
 
   return (

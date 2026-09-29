@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { useState, useTransition } from 'react';
 
-import { loadMoreReviews } from '~/app/[locale]/(storefront)/product/[id]/_actions/load-reviews';
+import { loadMoreReviews } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/load-reviews';
 import type { Review } from '~/data/product';
 import { formatDateIn } from '~/lib/i18n/messages';
 import { Rating } from '~/ui/primitives/rating';

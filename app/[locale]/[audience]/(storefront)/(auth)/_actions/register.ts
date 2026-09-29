@@ -7,7 +7,6 @@ import { parseWithZod } from '@conform-to/zod';
 import { getFormFields } from '~/data/form-fields';
 import { toFormFieldsInput } from '~/domain/form-fields';
 import { readRecaptchaToken } from '~/lib/recaptcha';
-import { redirect } from 'next/navigation';
 
 import { registerSchema } from '~/domain/registration';
 import { isAuthConfigured, signIn } from '~/lib/auth';
@@ -15,6 +14,7 @@ import { mutate } from '~/lib/bigcommerce';
 import { BigCommerceGQLError } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { getCartId } from '~/lib/cart/session';
+import type { DocumentNavigationResult } from '~/lib/navigation/document-navigation';
 
 /**
  * Create an account, then sign in.
@@ -58,9 +58,9 @@ const formError = (message: string): SubmissionResult => ({
 });
 
 export async function register(
-  _previous: SubmissionResult | null,
+  _previous: SubmissionResult | DocumentNavigationResult | null,
   formData: FormData,
-): Promise<SubmissionResult> {
+): Promise<SubmissionResult | DocumentNavigationResult> {
   const t = await getTForAction();
 
   if (!isAuthConfigured) {
@@ -154,5 +154,6 @@ export async function register(
 
   await signIn('password', { email, password, cartId: cartId ?? '', redirect: false });
 
-  redirect('/account/orders');
+  // A document load, not `redirect()` — see the same step in `login.ts`.
+  return { navigateTo: '/account/orders' };
 }

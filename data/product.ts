@@ -3,7 +3,9 @@ import { cacheLife, cacheTag } from 'next/cache';
 
 import { toSafeHtml } from '~/domain/html';
 import { type ProductOptionField, toProductOptions } from '~/domain/product-options';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { ProductOptionsFragment } from '~/lib/bigcommerce/fragments/product-options';
 import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
@@ -171,12 +173,14 @@ export interface Product {
   seo: { pageTitle: string; metaDescription: string; metaKeywords: string };
 }
 
-export async function getProduct(entityId: number): Promise<Product | null> {
-  'use cache';
+async function loadProduct(
+  fetchCatalog: CatalogFetcher,
+  entityId: number,
+): Promise<Product | null> {
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
-  const data = await query({
+  const data = await fetchCatalog({
     document: ProductQuery,
     variables: { entityId },
     locale: await activeLocale(),
@@ -245,6 +249,31 @@ export async function getProduct(entityId: number): Promise<Product | null> {
   };
 }
 
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getProduct(entityId: number): Promise<Product | null> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedProduct(entityId)
+    : sharedProduct(entityId);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedProduct(entityId: number): Promise<Product | null> {
+  'use cache';
+
+  return loadProduct(query, entityId);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedProduct(entityId: number): Promise<Product | null> {
+  'use cache: private';
+
+  return loadProduct(restrictedQuery, entityId);
+}
+
 /* ── Related products ─────────────────────────────────────────────────────── */
 
 const RelatedProductsQuery = graphql(`
@@ -298,33 +327,69 @@ export interface RelatedProduct {
   numberOfReviews: number;
 }
 
-export async function getRelatedProducts(
+async function loadRelatedProducts(
+  fetchCatalog: CatalogFetcher,
   entityId: number,
   currency: string,
 ): Promise<RelatedProduct[]> {
-  'use cache';
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
-  const data = await query({
+  const data = await fetchCatalog({
     document: RelatedProductsQuery,
     variables: { entityId, currencyCode: toCurrencyCode(currency) },
     locale: await activeLocale(),
   });
 
-  return removeEdgesAndNodes(data.site.product?.relatedProducts ?? { edges: [] }).map((related) => ({
-    id: String(related.entityId),
-    title: related.name,
-    href: related.path,
-    image: related.defaultImage
-      ? { src: related.defaultImage.url, alt: related.defaultImage.altText }
-      : undefined,
-    brand: related.brand?.name ?? undefined,
-    price: related.prices?.price.value ?? null,
-    currencyCode: related.prices?.price.currencyCode ?? 'USD',
-    rating: related.reviewSummary.averageRating,
-    numberOfReviews: related.reviewSummary.numberOfReviews,
-  }));
+  return removeEdgesAndNodes(data.site.product?.relatedProducts ?? { edges: [] }).map(
+    (related) => ({
+      id: String(related.entityId),
+      title: related.name,
+      href: related.path,
+      image: related.defaultImage
+        ? { src: related.defaultImage.url, alt: related.defaultImage.altText }
+        : undefined,
+      brand: related.brand?.name ?? undefined,
+      price: related.prices?.price.value ?? null,
+      currencyCode: related.prices?.price.currencyCode ?? 'USD',
+      rating: related.reviewSummary.averageRating,
+      numberOfReviews: related.reviewSummary.numberOfReviews,
+    }),
+  );
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getRelatedProducts(
+  entityId: number,
+  currency: string,
+): Promise<RelatedProduct[]> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedRelatedProducts(entityId, currency)
+    : sharedRelatedProducts(entityId, currency);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedRelatedProducts(
+  entityId: number,
+  currency: string,
+): Promise<RelatedProduct[]> {
+  'use cache';
+
+  return loadRelatedProducts(query, entityId, currency);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedRelatedProducts(
+  entityId: number,
+  currency: string,
+): Promise<RelatedProduct[]> {
+  'use cache: private';
+
+  return loadRelatedProducts(restrictedQuery, entityId, currency);
 }
 
 /* ── Reviews (read path) ──────────────────────────────────────────────────── */
@@ -367,16 +432,18 @@ export interface Review {
   createdAt: string;
 }
 
-export async function getProductReviews(
+async function loadProductReviews(
+  fetchCatalog: CatalogFetcher,
   entityId: number,
   first = 5,
   after: string | null = null,
 ): Promise<{ reviews: Review[]; hasNextPage: boolean; endCursor: string | null }> {
-  'use cache';
   cacheLife('reviews');
   cacheTag(tags.productReviews(entityId), tags.product(entityId));
 
-  const data = await query({ document: ReviewsQuery, variables: { entityId, first, after },
+  const data = await fetchCatalog({
+    document: ReviewsQuery,
+    variables: { entityId, first, after },
     locale: await activeLocale(),
   });
   const connection = data.site.product?.reviews;
@@ -397,6 +464,43 @@ export async function getProductReviews(
     hasNextPage: connection.pageInfo.hasNextPage,
     endCursor: connection.pageInfo.endCursor,
   };
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getProductReviews(
+  entityId: number,
+  first = 5,
+  after: string | null = null,
+): Promise<{ reviews: Review[]; hasNextPage: boolean; endCursor: string | null }> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedProductReviews(entityId, first, after)
+    : sharedProductReviews(entityId, first, after);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedProductReviews(
+  entityId: number,
+  first = 5,
+  after: string | null = null,
+): Promise<{ reviews: Review[]; hasNextPage: boolean; endCursor: string | null }> {
+  'use cache';
+
+  return loadProductReviews(query, entityId, first, after);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedProductReviews(
+  entityId: number,
+  first = 5,
+  after: string | null = null,
+): Promise<{ reviews: Review[]; hasNextPage: boolean; endCursor: string | null }> {
+  'use cache: private';
+
+  return loadProductReviews(restrictedQuery, entityId, first, after);
 }
 
 /* ── Static params ────────────────────────────────────────────────────────── */
@@ -458,7 +562,7 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
     const data: ResultOf<typeof ProductIdsQuery> = await query({
       document: ProductIdsQuery,
       variables: { first: Math.min(PRODUCTS_MAX_PAGE_SIZE, limit - ids.length), after },
-  });
+    });
 
     ids.push(...removeEdgesAndNodes(data.site.products).map((product) => product.entityId));
 
@@ -507,15 +611,15 @@ const MoreImagesQuery = graphql(`
  * images has told us they want them, and the payload is URLs rather than
  * bytes, so one round trip beats three.
  */
-export async function getMoreProductImages(
+async function loadMoreProductImages(
+  fetchCatalog: CatalogFetcher,
   entityId: number,
   after: string,
 ): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
-  'use cache';
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
-  const data = await query({ document: MoreImagesQuery, variables: { entityId, after } });
+  const data = await fetchCatalog({ document: MoreImagesQuery, variables: { entityId, after } });
   const images = data.site.product?.images;
 
   if (!images) {
@@ -530,4 +634,38 @@ export async function getMoreProductImages(
     })),
     nextCursor: images.pageInfo.hasNextPage ? (images.pageInfo.endCursor ?? null) : null,
   };
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getMoreProductImages(
+  entityId: number,
+  after: string,
+): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedMoreProductImages(entityId, after)
+    : sharedMoreProductImages(entityId, after);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedMoreProductImages(
+  entityId: number,
+  after: string,
+): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
+  'use cache';
+
+  return loadMoreProductImages(query, entityId, after);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedMoreProductImages(
+  entityId: number,
+  after: string,
+): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
+  'use cache: private';
+
+  return loadMoreProductImages(restrictedQuery, entityId, after);
 }

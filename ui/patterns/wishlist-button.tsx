@@ -8,7 +8,7 @@ import { useActionState } from 'react';
 import {
   addToWishlist,
   removeWishlistItem,
-} from '~/app/[locale]/(storefront)/account/wishlists/_actions/wishlist';
+} from '~/app/[locale]/[audience]/(storefront)/account/wishlists/_actions/wishlist';
 import { HeartIcon } from '~/ui/primitives/heart-icon';
 
 /**

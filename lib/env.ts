@@ -64,6 +64,34 @@ const envSchema = z.object({
    * behind the Management API — so this cannot be detected at runtime and has to
    * be declared. Declaring nothing costs nothing, which is the right default.
    */
+  /**
+   * Customer groups whose **catalog visibility** differs from guests', as a
+   * comma-separated list of ids.
+   *
+   * BigCommerce resolves visibility (group category access) from the caller's
+   * token, while the shared catalog cache is fetched with no token — so without
+   * this, a shopper whose group can see more than guests gets the guest catalog:
+   * 404 on their products, and search and navigation silently missing them.
+   *
+   * Listed groups are served the `restricted` audience: the proxy rewrites them
+   * to `app/[locale]/restricted/…` and catalog reads fetch with their token in
+   * `'use cache: private'` scopes. That costs roughly Catalyst's uncached price
+   * *for those shoppers only*; guests and every other group stay on the shared
+   * static catalog. Empty — the default — changes nothing.
+   *
+   * List the groups that can see something guests cannot. If the store assigns
+   * guests to a group, that is the group to compare against.
+   */
+  RESTRICTED_CATALOG_GROUPS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((part) => Number(part.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+
   PERSONALIZED_PRICE_GROUPS: z
     .string()
     .default('')

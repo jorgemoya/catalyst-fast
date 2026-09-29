@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 
 import { useTransition } from 'react';
 
-import { setCurrency } from '~/app/[locale]/(storefront)/_actions/currency';
+import { setCurrency } from '~/app/[locale]/[audience]/(storefront)/_actions/currency';
 import type { StoreCurrency } from '~/data/currencies';
 
 /**

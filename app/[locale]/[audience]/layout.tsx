@@ -28,7 +28,7 @@ import '~/styles/globals.css';
  */
 const inter = localFont({
   // `../fonts` because this layout now sits under the [locale] root param.
-  src: '../fonts/inter-latin-variable.woff2',
+  src: '../../fonts/inter-latin-variable.woff2',
   // Variable font: one file covers the whole range, so there is no per-weight
   // request and `font-weight` interpolates continuously.
   weight: '100 900',
@@ -85,7 +85,13 @@ export async function generateStaticParams() {
    */
   const locales = await getLocales();
 
-  return locales.map((locale) => ({ locale: locale.code }));
+  /*
+   * Only the `public` audience is prerendered. `restricted` renders on demand:
+   * it is per-shopper by nature (catalog reads carry the customer's token in
+   * private scopes), so a build-time shell would contain nothing worth having,
+   * and stores that restrict nothing never render it at all. See `lib/audience.ts`.
+   */
+  return locales.map((locale) => ({ locale: locale.code, audience: 'public' }));
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

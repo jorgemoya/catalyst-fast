@@ -54,8 +54,10 @@ Optional:
 BIGCOMMERCE_GRAPHQL_API_DOMAIN=      # defaults to mybigcommerce.com
 BIGCOMMERCE_TRUSTED_PROXY_SECRET=
 BC_MAX_CONCURRENCY=16                # in-flight cap on requests to BigCommerce
+BUILD_WORKERS=2                      # prerender processes; each gets its own BC_MAX_CONCURRENCY
 TRAILING_SLASH=true                  # must match next.config.ts
 CACHE_HANDLER=kv                     # self-hosting only; backs `use cache: remote`
+RESTRICTED_CATALOG_GROUPS=           # customer group ids with extra catalog visibility; empty = off
 UPSTASH_REDIS_REST_URL=              # shared KV for proxy route resolution
 UPSTASH_REDIS_REST_TOKEN=
 KV_NAMESPACE=                        # defaults to the store hash

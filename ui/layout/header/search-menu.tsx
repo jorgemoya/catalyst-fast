@@ -6,7 +6,7 @@ import { Dialog } from '@base-ui/react/dialog';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
-import { searchSuggestions } from '~/app/[locale]/(storefront)/search/_actions/suggest';
+import { searchSuggestions } from '~/app/[locale]/[audience]/(storefront)/search/_actions/suggest';
 import { MIN_QUERY_LENGTH, type Suggestion } from '~/domain/suggestions';
 import { Image } from '~/ui/primitives/image';
 

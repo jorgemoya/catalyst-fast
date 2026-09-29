@@ -3,7 +3,9 @@ import 'server-only';
 import { cacheLife, cacheTag } from 'next/cache';
 
 import { type Price, toPrice } from '~/domain/price';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { PricingFragment } from '~/lib/bigcommerce/fragments/pricing';
 import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
@@ -116,12 +118,12 @@ export interface CompareProduct {
 /** Comparing more than a handful is unreadable, and BigCommerce paginates anyway. */
 export const MAX_COMPARE = 10;
 
-export async function getCompareProducts(
+async function loadCompareProducts(
+  fetchCatalog: CatalogFetcher,
   entityIds: readonly number[],
   taxDisplay: 'INC' | 'EX' | 'BOTH' | null,
   currency: string,
 ): Promise<CompareProduct[]> {
-  'use cache: remote';
   cacheLife('listing');
 
   const ids = [...new Set(entityIds)].sort((a, b) => a - b).slice(0, MAX_COMPARE);
@@ -132,7 +134,7 @@ export async function getCompareProducts(
 
   cacheTag(tags.products, ...ids.map((id) => tags.product(id)));
 
-  const data = await query({
+  const data = await fetchCatalog({
     document: CompareProductsQuery,
     variables: { entityIds: [...ids], currencyCode: toCurrencyCode(currency) },
     locale: await activeLocale(),
@@ -177,4 +179,41 @@ export async function getCompareProducts(
       availability: product.availabilityV2.status,
       hasOptions: removeEdgesAndNodes(product.productOptions).length > 0,
     }));
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getCompareProducts(
+  entityIds: readonly number[],
+  taxDisplay: 'INC' | 'EX' | 'BOTH' | null,
+  currency: string,
+): Promise<CompareProduct[]> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedCompareProducts(entityIds, taxDisplay, currency)
+    : sharedCompareProducts(entityIds, taxDisplay, currency);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedCompareProducts(
+  entityIds: readonly number[],
+  taxDisplay: 'INC' | 'EX' | 'BOTH' | null,
+  currency: string,
+): Promise<CompareProduct[]> {
+  'use cache: remote';
+
+  return loadCompareProducts(query, entityIds, taxDisplay, currency);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedCompareProducts(
+  entityIds: readonly number[],
+  taxDisplay: 'INC' | 'EX' | 'BOTH' | null,
+  currency: string,
+): Promise<CompareProduct[]> {
+  'use cache: private';
+
+  return loadCompareProducts(restrictedQuery, entityIds, taxDisplay, currency);
 }

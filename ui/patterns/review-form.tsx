@@ -6,7 +6,7 @@ import { getZodConstraint, parseWithZod } from '@conform-to/zod';
 import { useForm } from '@conform-to/react';
 import { useActionState, useMemo, useState } from 'react';
 
-import { submitReview } from '~/app/[locale]/(storefront)/product/[id]/_actions/submit-review';
+import { submitReview } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/submit-review';
 import { MAX_RATING, MIN_RATING, reviewSchema } from '~/domain/review';
 
 import { RecaptchaField } from './recaptcha-field';

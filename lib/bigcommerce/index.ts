@@ -22,7 +22,7 @@ export const bc = createClient({
 });
 
 /** A public request carries no customer credential, by construction. */
-type PublicRequest<TResult, TVariables> = Omit<
+export type PublicRequest<TResult, TVariables> = Omit<
   ClientRequest<TResult, TVariables>,
   'customerAccessToken' | 'fetchOptions'
 > & {

@@ -8,8 +8,10 @@ import {
   SORT_OPTIONS,
 } from '~/domain/listing-params';
 import { type ProductCard, toProductCard } from '~/domain/product-card';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { PaginationFragment } from '~/lib/bigcommerce/fragments/pagination';
 import { recordCacheMiss } from '~/lib/telemetry';
 import { ProductCardFragment } from '~/lib/bigcommerce/fragments/product-card';
@@ -235,11 +237,13 @@ function toVariables(key: ListingKey) {
   };
 }
 
-async function fetchListing(key: ListingKey): Promise<Listing> {
+async function fetchListing(key: ListingKey, fetchCatalog: CatalogFetcher): Promise<Listing> {
   const [data, settings] = await Promise.all([
-    query({ document: SearchProductsQuery, variables: toVariables(key),
-    locale: await activeLocale(),
-  }),
+    fetchCatalog({
+      document: SearchProductsQuery,
+      variables: toVariables(key),
+      locale: await activeLocale(),
+    }),
     getStoreSettings(),
   ]);
   const results = data.site.search.searchProducts;
@@ -314,7 +318,18 @@ async function cachedListing(key: ListingKey): Promise<Listing> {
   );
   // Reached only on a miss — see logCacheMiss.
   logCacheMiss(key);
-  return fetchListing(key);
+  return fetchListing(key, query);
+}
+
+/**
+ * Customer-group listing — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache). No cardinality
+ * bypass: nothing here is stored server-side, so there is no cache to flood.
+ */
+async function restrictedListing(key: ListingKey): Promise<Listing> {
+  'use cache: private';
+
+  return fetchListing(key, restrictedQuery);
 }
 
 function hasFilters(key: ListingKey): boolean {
@@ -337,10 +352,14 @@ function hasFilters(key: ListingKey): boolean {
  * with entries that will be read exactly once.
  */
 // cache-audit: dynamic — a dispatcher, not a read. It chooses between the
-// cached `cachedListing` and a deliberate cache bypass for high-cardinality
-// keys; a directive here would cache the routing decision itself.
+// cached `cachedListing`, a deliberate cache bypass for high-cardinality keys,
+// and the customer-group listing; a directive here would cache the choice itself.
 export async function searchListing(key: ListingKey): Promise<Listing> {
-  return shouldBypassCache(key) ? fetchListing(key) : cachedListing(key);
+  if ((await currentAudience()) === 'restricted') {
+    return restrictedListing(key);
+  }
+
+  return shouldBypassCache(key) ? fetchListing(key, query) : cachedListing(key);
 }
 
 /**

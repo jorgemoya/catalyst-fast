@@ -3,7 +3,6 @@
 import { getTForAction } from '~/lib/i18n/server';
 import type { SubmissionResult } from '@conform-to/react';
 import { parseWithZod } from '@conform-to/zod';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { safeRedirectPath } from '~/domain/redirect';
@@ -12,6 +11,7 @@ import { AuthError } from 'next-auth';
 
 import { isAuthConfigured, signIn } from '~/lib/auth';
 import { getCartId } from '~/lib/cart/session';
+import type { DocumentNavigationResult } from '~/lib/navigation/document-navigation';
 
 /**
  * Sign in.
@@ -41,9 +41,9 @@ const formError = (message: string): SubmissionResult => ({
 });
 
 export async function login(
-  _previous: SubmissionResult | null,
+  _previous: SubmissionResult | DocumentNavigationResult | null,
   formData: FormData,
-): Promise<SubmissionResult> {
+): Promise<SubmissionResult | DocumentNavigationResult> {
   const t = await getTForAction();
 
   if (!isAuthConfigured) {
@@ -82,5 +82,10 @@ export async function login(
     throw error;
   }
 
-  redirect(safeRedirectPath(redirectTo, '/account/orders'));
+  /*
+   * Returned, not `redirect()`ed: signing in can move the shopper into the
+   * restricted catalog audience, a root-param change that must be a document
+   * load. See `lib/navigation/document-navigation.ts`.
+   */
+  return { navigateTo: safeRedirectPath(redirectTo, '/account/orders') };
 }

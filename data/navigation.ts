@@ -1,6 +1,8 @@
 import { cacheLife, cacheTag } from 'next/cache';
 
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
@@ -132,12 +134,14 @@ export interface CategoryNode extends NavLink {
 }
 
 /** Every top-level category, names and paths only. Shared by header, footer, drawer. */
-export async function getTopLevelCategories(): Promise<Array<NavLink & { id: number }>> {
-  'use cache';
+async function loadTopLevelCategories(
+  fetchCatalog: CatalogFetcher,
+): Promise<Array<NavLink & { id: number }>> {
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.categories);
 
-  const data = await query({ document: TopLevelCategoriesQuery,
+  const data = await fetchCatalog({
+    document: TopLevelCategoriesQuery,
     locale: await activeLocale(),
   });
 
@@ -148,17 +152,46 @@ export async function getTopLevelCategories(): Promise<Array<NavLink & { id: num
   }));
 }
 
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getTopLevelCategories(): Promise<Array<NavLink & { id: number }>> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedTopLevelCategories()
+    : sharedTopLevelCategories();
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedTopLevelCategories(): Promise<Array<NavLink & { id: number }>> {
+  'use cache';
+
+  return loadTopLevelCategories(query);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedTopLevelCategories(): Promise<Array<NavLink & { id: number }>> {
+  'use cache: private';
+
+  return loadTopLevelCategories(restrictedQuery);
+}
+
 /**
  * The subtree beneath one category, two levels deep — what a single mega-menu
  * panel renders. `categoryTree(rootEntityId:)` returns the root node itself with
  * children nested, so the children are unwrapped here.
  */
-export async function getCategoryBranch(rootEntityId: number): Promise<CategoryNode[]> {
-  'use cache';
+async function loadCategoryBranch(
+  fetchCatalog: CatalogFetcher,
+  rootEntityId: number,
+): Promise<CategoryNode[]> {
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.category(rootEntityId), tags.categories);
 
-  const data = await query({ document: CategoryBranchQuery, variables: { rootEntityId },
+  const data = await fetchCatalog({
+    document: CategoryBranchQuery,
+    variables: { rootEntityId },
     locale: await activeLocale(),
   });
   const root = data.site.categoryTree[0];
@@ -180,13 +213,41 @@ export async function getCategoryBranch(rootEntityId: number): Promise<CategoryN
   }));
 }
 
-/** Brand and CMS-page links for the footer. */
-export async function getSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getCategoryBranch(rootEntityId: number): Promise<CategoryNode[]> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedCategoryBranch(rootEntityId)
+    : sharedCategoryBranch(rootEntityId);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedCategoryBranch(rootEntityId: number): Promise<CategoryNode[]> {
   'use cache';
+
+  return loadCategoryBranch(query, rootEntityId);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedCategoryBranch(rootEntityId: number): Promise<CategoryNode[]> {
+  'use cache: private';
+
+  return loadCategoryBranch(restrictedQuery, rootEntityId);
+}
+
+/** Brand and CMS-page links for the footer. */
+async function loadSiteLinks(
+  fetchCatalog: CatalogFetcher,
+): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
   cacheLife('navigation');
   cacheTag(tags.navigation, tags.brands, tags.content);
 
-  const data = await query({ document: SiteLinksQuery, variables: { first: NAV_LIMITS.footer },
+  const data = await fetchCatalog({
+    document: SiteLinksQuery,
+    variables: { first: NAV_LIMITS.footer },
     locale: await activeLocale(),
   });
 
@@ -204,4 +265,29 @@ export async function getSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLin
       }))
       .filter((link) => link.href !== ''),
   };
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedSiteLinks()
+    : sharedSiteLinks();
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
+  'use cache';
+
+  return loadSiteLinks(query);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
+  'use cache: private';
+
+  return loadSiteLinks(restrictedQuery);
 }

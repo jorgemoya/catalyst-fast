@@ -1,7 +1,9 @@
 import { cacheLife, cacheTag } from 'next/cache';
 
 import type { InventorySettings, ProductAvailability } from '~/domain/availability';
+import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
+import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
@@ -114,7 +116,6 @@ export async function getInventorySettings(): Promise<InventorySettings> {
   }
 
   return {
-     
     stockLevelDisplay: (settings.stockLevelDisplay ??
       'DONT_SHOW') as InventorySettings['stockLevelDisplay'],
     showOutOfStockMessage: settings.showOutOfStockMessage ?? false,
@@ -126,15 +127,15 @@ export async function getInventorySettings(): Promise<InventorySettings> {
   };
 }
 
-export async function getProductAvailability(
+async function loadProductAvailability(
+  fetchCatalog: CatalogFetcher,
   entityId: number,
   optionValueIds: readonly OptionValueId[] = [],
 ): Promise<ProductAvailability | null> {
-  'use cache: remote';
   cacheLife('inventory');
   cacheTag(tags.productInventory(entityId), tags.product(entityId), tags.inventory);
 
-  const data = await query({
+  const data = await fetchCatalog({
     document: ProductInventoryQuery,
     variables: {
       entityId,
@@ -157,7 +158,6 @@ export async function getProductAvailability(
   const variantAggregate = variant?.inventory?.aggregated;
 
   return {
-     
     status: product.availabilityV2.status as ProductAvailability['status'],
     isInStock: product.inventory.isInStock,
     hasVariantInventory: product.inventory.hasVariantInventory,
@@ -182,4 +182,38 @@ export async function getProductAvailability(
       removeEdgesAndNodes(variant?.inventory?.byLocation ?? { edges: [] }).at(0)
         ?.backorderMessage ?? null,
   };
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getProductAvailability(
+  entityId: number,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<ProductAvailability | null> {
+  return (await currentAudience()) === 'restricted'
+    ? restrictedProductAvailability(entityId, optionValueIds)
+    : sharedProductAvailability(entityId, optionValueIds);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedProductAvailability(
+  entityId: number,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<ProductAvailability | null> {
+  'use cache: remote';
+
+  return loadProductAvailability(query, entityId, optionValueIds);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedProductAvailability(
+  entityId: number,
+  optionValueIds: readonly OptionValueId[] = [],
+): Promise<ProductAvailability | null> {
+  'use cache: private';
+
+  return loadProductAvailability(restrictedQuery, entityId, optionValueIds);
 }

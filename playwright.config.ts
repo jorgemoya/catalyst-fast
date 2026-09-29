@@ -61,7 +61,25 @@ export default defineConfig({
       origins: [],
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  /*
+   * The restricted-catalog suite signs in as the same fixture customer as
+   * `signed-in.spec.ts`. Run concurrently, the two sessions trample each other
+   * (a sign-in in one file failed while the other was mid-flow), so it runs as
+   * its own project, strictly after the main one.
+   */
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: /restricted-catalog\.spec\.ts/u,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'restricted-catalog',
+      testMatch: /restricted-catalog\.spec\.ts/u,
+      dependencies: ['chromium'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
   webServer: {
     // Same env the app gets from `pnpm start`, so the server under test
     // behaves identically to a real one.

@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { useActionState } from 'react';
 
-import { checkGiftCertificateBalance } from '~/app/[locale]/(storefront)/gift-certificates/_actions/gift-certificate';
+import { checkGiftCertificateBalance } from '~/app/[locale]/[audience]/(storefront)/gift-certificates/_actions/gift-certificate';
 import { formatCurrencyIn } from '~/lib/i18n/messages';
 
 /**
