@@ -1,6 +1,7 @@
 import { getT } from '~/lib/i18n/server';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
 import { type ReactNode, Suspense } from 'react';
 
 import { getInventorySettings, getProductAvailability } from '~/data/inventory';
@@ -14,7 +15,7 @@ import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-ga
 import { PriceOverlay } from '~/ui/patterns/price-overlay';
 import { WishlistToggle } from '~/ui/patterns/wishlist-toggle';
 import { Prose } from '~/ui/patterns/prose';
-import { PurchaseForm } from '~/ui/patterns/purchase-form';
+import { PurchaseForm, StockDelivery } from '~/ui/patterns/purchase-form';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
@@ -43,8 +44,8 @@ interface Props {
 }
 
 /**
- * Products are the one unbounded set on a storefront, so this seeds a top-N slice
- * rather than the catalog — and defaults to none. See `getProductIds`.
+ * Products are the one unbounded set on a storefront, so this prebuilds the
+ * store's featured products rather than the catalog. See `getProductIds`.
  */
 export async function generateStaticParams() {
   const ids = await getProductIds();
@@ -287,21 +288,45 @@ async function Purchase({
   product: NonNullable<Awaited<ReturnType<typeof getProduct>>>;
   priceOverlay?: ReactNode;
 }) {
-  const [price, availability, inventory] = await Promise.all([
+  const [price, inventory] = await Promise.all([
     getProductPrice(product.id, await getDefaultCurrency()),
-    getProductAvailability(product.id),
     getInventorySettings(),
   ]);
 
   return (
     <PurchaseForm
       fields={product.options}
-      initial={{ price, availability, inventory }}
+      initial={{ price, availability: null, inventory }}
       priceOverlay={priceOverlay}
+      stockSlot={
+        <Suspense fallback={null}>
+          <StreamedStock productId={product.id} />
+        </Suspense>
+      }
       productId={product.id}
       quantityLimits={{ min: product.minPurchaseQuantity, max: product.maxPurchaseQuantity }}
     />
   );
+}
+
+/**
+ * Default-variant stock, rendered **at request time**, never in the shell.
+ *
+ * Anything in the prerendered shell sets the whole page's lifetime, and stock is
+ * cached for 30 seconds with a 5-minute ceiling. With it inside `Purchase`,
+ * every product page was rebuilt at least every 30 seconds and discarded after
+ * 5 idle minutes — so a page prebuilt at deploy had expired before most
+ * shoppers arrived (measured: 44 BigCommerce calls on the first visit). Out of
+ * the shell, the page lives as long as its price and content do.
+ *
+ * `connection()` is what keeps it out: without it the read is cacheable and
+ * would be folded into the prerender again. The read itself is still the shared
+ * 30-second inventory entry, so this costs a cache hit, not an origin call.
+ */
+async function StreamedStock({ productId }: { productId: number }) {
+  await connection();
+
+  return <StockDelivery availability={await getProductAvailability(productId)} />;
 }
 
 async function Specifications({ product }: { product: NonNullable<Awaited<ReturnType<typeof getProduct>>> }) {

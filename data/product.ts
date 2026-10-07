@@ -508,11 +508,18 @@ async function restrictedProductReviews(
 const ProductIdsQuery = graphql(`
   query ProductIds($first: Int!, $after: String) {
     site {
-      products(first: $first, after: $after) {
+      featuredProducts(first: $first, after: $after) {
         pageInfo {
           hasNextPage
           endCursor
         }
+        edges {
+          node {
+            entityId
+          }
+        }
+      }
+      products(first: 1) {
         edges {
           node {
             entityId
@@ -528,19 +535,28 @@ const PRODUCTS_MAX_PAGE_SIZE = 50;
 
 /**
  * Products are the one unbounded set on a storefront — tens of thousands is
- * ordinary — so unlike categories and brands this seeds a **top-N slice**, never
- * the whole catalog. Each seeded route costs a build-time BigCommerce call, and
+ * ordinary — so unlike categories and brands this prebuilds a slice, never the
+ * whole catalog. Each prebuilt route costs build-time BigCommerce calls, and
  * `dynamicParams` covers everything else correctly.
  *
- * Kept deliberately small by default. On a real catalog a post-deploy cache-warm
- * over actual top URLs beats guessing at build time — remote cache entries are
- * keyed by `buildId`, so every deploy starts cold regardless of seeding.
+ * **The slice is the merchant's featured products.** It used to be the first N
+ * in BigCommerce's default order — arbitrary, and on a real catalog unrelated to
+ * what shoppers open. Featured products are the merchant's own statement of what
+ * matters, they are linked from the home page, and every store has the setting,
+ * so this stays generic across stores.
  *
- * **Cannot be zero.** Cache Components requires `generateStaticParams` to return
- * at least one result: *"all `generateStaticParams` functions must return at
- * least one result … to ensure that we can perform build-time validation that
- * there is no other dynamic accesses that would cause a runtime error."* So the
- * limit clamps to a minimum of 1 rather than disabling prerendering.
+ * Prebuilding only pays off because stock is no longer in the product page's
+ * shell (see `StreamedStock` on the page): with it there, a prebuilt page
+ * expired five minutes after the build. A post-deploy warm over real top URLs
+ * is still the better tool for a large catalog — remote cache entries are keyed
+ * by `buildId`, so data caches start cold on every deploy regardless.
+ *
+ * **Cannot be empty.** Cache Components requires `generateStaticParams` to
+ * return at least one result: *"all `generateStaticParams` functions must return
+ * at least one result … to ensure that we can perform build-time validation that
+ * there is no other dynamic accesses that would cause a runtime error."* So a
+ * store with nothing featured falls back to its first product, and the limit
+ * clamps to a minimum of 1.
  */
 const PRODUCT_STATIC_PARAMS_LIMIT = Math.max(
   1,
@@ -556,6 +572,7 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
   // cap. Without this, asking for 200 silently returned 50 — the limit claimed
   // one thing and did another, which is worse than either bound on its own.
   const ids: number[] = [];
+  let fallback: number[] = [];
   let after: string | null = null;
 
   while (ids.length < limit) {
@@ -564,9 +581,10 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
       variables: { first: Math.min(PRODUCTS_MAX_PAGE_SIZE, limit - ids.length), after },
     });
 
-    ids.push(...removeEdgesAndNodes(data.site.products).map((product) => product.entityId));
+    ids.push(...removeEdgesAndNodes(data.site.featuredProducts).map((product) => product.entityId));
+    fallback = removeEdgesAndNodes(data.site.products).map((product) => product.entityId);
 
-    const { hasNextPage, endCursor } = data.site.products.pageInfo;
+    const { hasNextPage, endCursor } = data.site.featuredProducts.pageInfo;
 
     if (!hasNextPage || !endCursor) {
       break;
@@ -575,7 +593,7 @@ export async function getProductIds(limit = PRODUCT_STATIC_PARAMS_LIMIT): Promis
     after = endCursor;
   }
 
-  return ids.slice(0, limit);
+  return ids.length > 0 ? ids.slice(0, limit) : fallback;
 }
 
 const MoreImagesQuery = graphql(`

@@ -2,7 +2,18 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 
-import { type ReactNode, useActionState, useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useActionState,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 
 import { addToCart } from '~/app/[locale]/[audience]/(storefront)/product/[id]/_actions/add-to-cart';
 import {
@@ -67,23 +78,73 @@ interface Props {
   priceOverlay?: ReactNode;
   /** Server-rendered default variant state, shown until the shopper changes something. */
   initial: VariantSnapshot;
+  /**
+   * The default variant's stock, streamed in after the shell.
+   *
+   * Stock changes by the second, and anything in the prerendered shell sets the
+   * whole page's lifetime — with availability inside it, every product page
+   * expired five minutes after it was built. So `initial.availability` arrives
+   * `null` and this slot renders a `<StockDelivery>` from a request-time
+   * boundary, which hands the value to *this* form instance: the shopper's
+   * selections and quantity survive it landing, which swapping in a second
+   * form would not.
+   */
+  stockSlot?: ReactNode;
+}
+
+const StockContext = createContext<
+  ((availability: VariantSnapshot['availability']) => void) | null
+>(null);
+
+/** Delivers streamed default-variant stock to the enclosing `PurchaseForm`. */
+export function StockDelivery({ availability }: { availability: VariantSnapshot['availability'] }) {
+  const deliver = useContext(StockContext);
+
+  useEffect(() => {
+    deliver?.(availability);
+  }, [deliver, availability]);
+
+  return null;
 }
 
 type Selection = OptionSelection;
 
-export function PurchaseForm({ productId, fields, quantityLimits, initial, priceOverlay }: Props) {
+export function PurchaseForm({
+  productId,
+  fields,
+  quantityLimits,
+  initial,
+  priceOverlay,
+  stockSlot,
+}: Props) {
   const t = useTranslations();
 
   const variantFields = useMemo(() => fields.filter((field) => field.variantDefining), [fields]);
   const [selection, setSelection] = useState<Selection>(() => defaultSelection(fields));
   const [snapshot, setSnapshot] = useState(initial);
+  /*
+   * Whether the snapshot's stock is real. False until either the streamed
+   * default-variant stock lands or the shopper picks a variant (whose snapshot
+   * carries its own). Until then the CTA stays disabled rather than offering
+   * "Add to cart" on something that may be out of stock.
+   */
+  const [stockKnown, setStockKnown] = useState(initial.availability !== null || !stockSlot);
+  // Set once the shopper's own selection owns the snapshot, so a late stream
+  // for the *default* variant cannot overwrite it.
+  const variantChosen = useRef(false);
+
+  const deliverStock = useCallback((availability: VariantSnapshot['availability']) => {
+    if (variantChosen.current) {
+      return;
+    }
+
+    setSnapshot((current) => ({ ...current, availability }));
+    setStockKnown(true);
+  }, []);
   const [quantity, setQuantity] = useState(quantityLimits.min);
   const [isResolving, startTransition] = useTransition();
 
-  const [result, formAction, isSubmitting] = useActionState(
-    addToCart.bind(null, productId),
-    null,
-  );
+  const [result, formAction, isSubmitting] = useActionState(addToCart.bind(null, productId), null);
 
   const errors = result?.error ?? {};
   const formErrors = errors[''] ?? [];
@@ -123,8 +184,11 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial, price
 
       setSelection(next);
 
+      variantChosen.current = true;
+
       startTransition(async () => {
         setSnapshot(await getVariantSnapshot(productId, variantSelection(fields, next)));
+        setStockKnown(true);
       });
     }
     // Intentionally once on mount: this reconciles the URL with the server's
@@ -184,81 +248,92 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial, price
     // Only variant-defining choices go to BigCommerce. Sending the whole
     // selection would pass a number field's value (say `5`) as if it were an
     // option-value id.
+    variantChosen.current = true;
+
     startTransition(async () => {
       setSnapshot(await getVariantSnapshot(productId, variantSelection(fields, next)));
+      setStockKnown(true);
     });
   };
 
   const blocked =
+    !stockKnown ||
     (derived.cta?.disabled ?? false) ||
     missingRequired.length > 0 ||
     (derived.backorder?.exceedsAvailable ?? false);
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
-      {/*
+    <StockContext value={deliverStock}>
+      <form action={formAction} className="flex flex-col gap-6">
+        {stockSlot}
+        {/*
         Both prices live here so the CSS `:has()` rule can hide the base one the
         moment an overlay lands, and so the overlay occupies the slot the base
         price vacated rather than appearing at the end of the form.
       */}
-      <div data-price-slot>
-        <VariantPrice price={snapshot.price} stale={isResolving} />
-        {priceOverlay}
-      </div>
+        <div data-price-slot>
+          <VariantPrice price={snapshot.price} stale={isResolving} />
+          {priceOverlay}
+        </div>
 
-      {fields.map((field) => (
-        <OptionField
-          errors={errors[`option.${field.id}`] ?? undefined}
-          field={field}
-          key={field.id}
-          name={`option.${field.id}`}
-          onSelect={(value) => select(field.id, value)}
-          value={field.variantDefining ? (selection[field.id] ?? '') : undefined}
+        {fields.map((field) => (
+          <OptionField
+            errors={errors[`option.${field.id}`] ?? undefined}
+            field={field}
+            key={field.id}
+            name={`option.${field.id}`}
+            onSelect={(value) => select(field.id, value)}
+            value={field.variantDefining ? (selection[field.id] ?? '') : undefined}
+          />
+        ))}
+
+        <VariantAvailability derived={derived} stale={isResolving} />
+
+        <QuantityStepper
+          decrementLabel={t('Product.decreaseQuantity')}
+          disabled={isSubmitting}
+          incrementLabel={t('Product.increaseQuantity')}
+          label={t('Product.quantity')}
+          max={quantityLimits.max}
+          min={quantityLimits.min}
+          name="quantity"
+          onChange={setQuantity}
+          value={quantity}
         />
-      ))}
 
-      <VariantAvailability derived={derived} stale={isResolving} />
+        <button
+          className="h-12 rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="add-to-cart"
+          disabled={blocked || isSubmitting}
+          type="submit"
+        >
+          {missingRequired.length > 0
+            ? t('Product.selectOptions', {
+                options: missingRequired.map((field) => field.label).join(' and '),
+              })
+            : ctaLabel(derived.cta?.kind, isSubmitting, t)}
+        </button>
 
-      <QuantityStepper
-        decrementLabel={t('Product.decreaseQuantity')}
-        disabled={isSubmitting}
-        incrementLabel={t('Product.increaseQuantity')}
-        label={t('Product.quantity')}
-        max={quantityLimits.max}
-        min={quantityLimits.min}
-        name="quantity"
-        onChange={setQuantity}
-        value={quantity}
-      />
+        {formErrors.length > 0 && (
+          <p className="text-sm text-error" role="alert">
+            {formErrors.join(' ')}
+          </p>
+        )}
 
-      <button
-        className="h-12 rounded-(--radius-control) bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-        data-testid="add-to-cart"
-        disabled={blocked || isSubmitting}
-        type="submit"
-      >
-        {missingRequired.length > 0
-          ? t('Product.selectOptions', {
-              options: missingRequired.map((field) => field.label).join(' and '),
-            })
-          : ctaLabel(derived.cta?.kind, isSubmitting, t)}
-      </button>
-
-      {formErrors.length > 0 && (
-        <p className="text-sm text-error" role="alert">
-          {formErrors.join(' ')}
-        </p>
-      )}
-
-      {wasAdded && (
-        <p className="flex items-center gap-3 text-sm" data-testid="add-to-cart-success" role="status">
-          <span className="text-in-stock">{t('Product.addedToCart')}</span>
-          <Link className="text-primary underline underline-offset-4" href="/cart">
-            {t('Product.viewCart')}
-          </Link>
-        </p>
-      )}
-    </form>
+        {wasAdded && (
+          <p
+            className="flex items-center gap-3 text-sm"
+            data-testid="add-to-cart-success"
+            role="status"
+          >
+            <span className="text-in-stock">{t('Product.addedToCart')}</span>
+            <Link className="text-primary underline underline-offset-4" href="/cart">
+              {t('Product.viewCart')}
+            </Link>
+          </p>
+        )}
+      </form>
+    </StockContext>
   );
 }
 
@@ -268,7 +343,8 @@ export function PurchaseForm({ productId, fields, quantityLimits, initial, price
  * in the UI where they belong.
  */
 function ctaLabel(
-  kind: CtaState['kind'] | undefined, isSubmitting: boolean,
+  kind: CtaState['kind'] | undefined,
+  isSubmitting: boolean,
   // Passed in, not read from a hook: this is a plain helper, and calling
   // `useTranslations(, t)` here violates the rules of hooks.
   t: ReturnType<typeof useTranslations>,

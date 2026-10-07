@@ -5,6 +5,7 @@ import { getProduct } from '~/data/product';
 import { getStoreSettings } from '~/data/settings';
 import { toSchemaAvailability } from '~/domain/availability';
 import { buildConfig } from '~/lib/config';
+import { connection } from 'next/server';
 
 /**
  * Product structured data.
@@ -18,6 +19,14 @@ import { buildConfig } from '~/lib/config';
  * offer in search results.
  */
 export async function ProductJsonLd({ productId }: { productId: number }) {
+  /*
+   * Request-time, like the stock in the purchase form: the offer's availability
+   * is stock, and anything in the prerendered shell caps the whole page at the
+   * inventory lifetime (see `StreamedStock` in the page). It still streams in
+   * the same HTML response, so crawlers read it exactly as before.
+   */
+  await connection();
+
   const [product, price, availability, settings] = await Promise.all([
     getProduct(productId),
     // Default currency deliberately: structured data describes the public

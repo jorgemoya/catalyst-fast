@@ -55,6 +55,7 @@ BIGCOMMERCE_GRAPHQL_API_DOMAIN=      # defaults to mybigcommerce.com
 BIGCOMMERCE_TRUSTED_PROXY_SECRET=
 BC_MAX_CONCURRENCY=16                # in-flight cap on requests to BigCommerce
 BUILD_WORKERS=2                      # prerender processes; each gets its own BC_MAX_CONCURRENCY
+PRODUCT_STATIC_PARAMS_LIMIT=10       # how many featured products to prebuild
 TRAILING_SLASH=true                  # must match next.config.ts
 CACHE_HANDLER=kv                     # self-hosting only; backs `use cache: remote`
 RESTRICTED_CATALOG_GROUPS=           # customer group ids with extra catalog visibility; empty = off

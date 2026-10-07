@@ -10,8 +10,10 @@ import {
 
 test.describe('product detail shell', () => {
   test('contains everything the Phase 3 bar requires', async ({ page }) => {
-    // Title, gallery, description, specs, default price, default stock, CTA —
-    // all server-rendered, no interaction required.
+    // Title, gallery, description, specs, default price, CTA — all
+    // server-rendered, no interaction required. Default stock streams in at
+    // request time rather than sitting in the shell (it would cap the page's
+    // lifetime at the inventory window); the CTA enabling is the proof it landed.
     await page.goto(SIMPLE_PRODUCT);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/\S/);
@@ -19,6 +21,7 @@ test.describe('product detail shell', () => {
     await expect(page.getByTestId('product-price')).toBeVisible();
     await expect(page.getByTestId('product-price')).toHaveText(/\d/);
     await expect(page.getByTestId('add-to-cart')).toBeVisible();
+    await expect(page.getByTestId('add-to-cart')).toBeEnabled();
     await expect(page.getByTestId('product-availability')).toBeAttached();
     await expect(page.getByRole('heading', { name: 'Specifications' })).toBeVisible();
   });
