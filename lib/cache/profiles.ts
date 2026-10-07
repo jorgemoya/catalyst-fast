@@ -88,8 +88,8 @@ export const SHELL_PROFILES = [
 export const cacheProfiles = {
   // ── In the static shell (stale >= MIN_SHELL_STALE) ──────────────────────────
   /*
-   * **`stale: 3600` on everything a product page caches** — settings, product,
-   * reviews, session. `stale` is *client-side only*: how long the browser keeps a
+   * **`stale: 3600` on everything a product or unfiltered listing page
+   * caches** — settings, navigation, product, reviews, listing, session. `stale` is *client-side only*: how long the browser keeps a
    * visited page before asking the server again, and the shortest `stale` in a
    * page wins for the whole page. These are the profiles a product page is made
    * of, so together they let a revisit within the hour render with no request
@@ -100,8 +100,8 @@ export const cacheProfiles = {
    */
   /** Site settings, currencies, tax display, inventory display settings. */
   settings: { stale: 3600, revalidate: 3600, expire: 86_400 },
-  /** Category tree, header nav, footer links. */
-  navigation: { stale: 300, revalidate: 1800, expire: 86_400 },
+  /** Category tree, header nav, footer links, a category's subcategories. */
+  navigation: { stale: 3600, revalidate: 1800, expire: 86_400 },
   /** Product core content: name, description, media, options, specs. */
   product: { stale: 3600, revalidate: 900, expire: 86_400 },
   /** Webpages, blog posts — merchant content that changes rarely. */
@@ -115,8 +115,17 @@ export const cacheProfiles = {
    * `data/customer/pricing.ts`.
    */
   price: { stale: 300, revalidate: 300, expire: 3600 },
-  /** Unfiltered / default-key listing pages, which we want in the shell. */
-  listing: { stale: 300, revalidate: 600, expire: 7200 },
+  /**
+   * Unfiltered / default-key listing pages, which we want in the shell.
+   *
+   * `stale: 3600` like the product page, so a category revisited within the
+   * hour renders from the browser. Unlike the product page, the grid *is* the
+   * page and can't stream separately, so card prices and out-of-stock badges
+   * can be up to an hour old on such a revisit. Accepted: the server still
+   * refreshes every `revalidate`, a reload gets it, and the product page a
+   * shopper clicks through to always streams live price and stock.
+   */
+  listing: { stale: 3600, revalidate: 600, expire: 7200 },
 
   // ── Streamed holes by construction (stale < MIN_SHELL_STALE) ───────────────
   /**
@@ -124,7 +133,18 @@ export const cacheProfiles = {
    * it could never be prerendered even in principle.
    */
   inventory: { stale: 60, revalidate: 30, expire: 300 },
-  /** Filtered listings and search results. High key cardinality. */
+  /**
+   * Filtered, sorted and paginated listings, and search results. High key
+   * cardinality — one entry per filter combination — so it stays out of the
+   * prefetched App Shell.
+   *
+   * Raising `stale` here does **not** keep these views in the browser: they
+   * read `searchParams`, so they render at request time, and the browser keeps
+   * request-time data for `staleTimes.dynamic` (default 0) regardless of
+   * `stale`. Measured: a sorted view revisited after 5s was refetched with
+   * `stale: 299`. On revisit the cached unfiltered grid shows first (the nested
+   * fallback) and the refined results swap in.
+   */
   search: { stale: 60, revalidate: 300, expire: 1800 },
   /** Cart by id. Invalidated precisely by `updateTag(tags.cart(id))`. */
   cart: { stale: 30, revalidate: 60, expire: 300 },
