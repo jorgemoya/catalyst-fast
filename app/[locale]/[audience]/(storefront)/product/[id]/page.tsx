@@ -15,7 +15,7 @@ import { ProductGallery, ProductGallerySkeleton } from '~/ui/patterns/product-ga
 import { PriceOverlay } from '~/ui/patterns/price-overlay';
 import { WishlistToggle } from '~/ui/patterns/wishlist-toggle';
 import { Prose } from '~/ui/patterns/prose';
-import { PurchaseForm, StockDelivery } from '~/ui/patterns/purchase-form';
+import { LiveVariantDelivery, PurchaseForm } from '~/ui/patterns/purchase-form';
 import { Rating } from '~/ui/primitives/rating';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
@@ -278,8 +278,10 @@ async function ProductRating({
 }
 
 /**
- * Resolves the default variant on the server, so the shell carries real price and
- * stock. The selector then owns changes client-side.
+ * The purchase form. Options, quantity limits and inventory *settings* are
+ * cached with the page; the default variant's price and stock stream in at
+ * request time (`StreamedDefaultVariant`). The selector then owns changes
+ * client-side.
  */
 async function Purchase({
   product,
@@ -288,21 +290,18 @@ async function Purchase({
   product: NonNullable<Awaited<ReturnType<typeof getProduct>>>;
   priceOverlay?: ReactNode;
 }) {
-  const [price, inventory] = await Promise.all([
-    getProductPrice(product.id, await getDefaultCurrency()),
-    getInventorySettings(),
-  ]);
+  const inventory = await getInventorySettings();
 
   return (
     <PurchaseForm
       fields={product.options}
-      initial={{ price, availability: null, inventory }}
-      priceOverlay={priceOverlay}
-      stockSlot={
+      initial={{ price: undefined, availability: null, inventory }}
+      liveSlot={
         <Suspense fallback={null}>
-          <StreamedStock productId={product.id} />
+          <StreamedDefaultVariant productId={product.id} />
         </Suspense>
       }
+      priceOverlay={priceOverlay}
       productId={product.id}
       quantityLimits={{ min: product.minPurchaseQuantity, max: product.maxPurchaseQuantity }}
     />
@@ -310,23 +309,32 @@ async function Purchase({
 }
 
 /**
- * Default-variant stock, rendered **at request time**, never in the shell.
+ * Default-variant price and stock, rendered **at request time**, never cached
+ * into the page.
  *
- * Anything in the prerendered shell sets the whole page's lifetime, and stock is
- * cached for 30 seconds with a 5-minute ceiling. With it inside `Purchase`,
- * every product page was rebuilt at least every 30 seconds and discarded after
- * 5 idle minutes — so a page prebuilt at deploy had expired before most
- * shoppers arrived (measured: 44 BigCommerce calls on the first visit). Out of
- * the shell, the page lives as long as its price and content do.
+ * Two lifetimes depend on what a page has cached in it. On the server, anything
+ * in the prerendered shell caps the page's lifetime: with stock inside, every
+ * product page expired five minutes after it was built (measured: 44
+ * BigCommerce calls on the first visit). In the browser, the shortest `stale`
+ * in the page sets how long a visited page is kept: with price inside (5
+ * minutes), clicking back to a product after that showed a full-page skeleton.
+ * Out of the page, both streams refresh on every visit inside this small
+ * boundary, and the rest of the page lives for the `product` profile's hour.
  *
- * `connection()` is what keeps it out: without it the read is cacheable and
- * would be folded into the prerender again. The read itself is still the shared
- * 30-second inventory entry, so this costs a cache hit, not an origin call.
+ * `connection()` is what keeps them out: without it the reads are cacheable and
+ * would be folded into the prerender again. The reads themselves are still the
+ * shared remote `price` and `inventory` entries, so this costs cache hits, not
+ * origin calls.
  */
-async function StreamedStock({ productId }: { productId: number }) {
+async function StreamedDefaultVariant({ productId }: { productId: number }) {
   await connection();
 
-  return <StockDelivery availability={await getProductAvailability(productId)} />;
+  const [price, availability] = await Promise.all([
+    getProductPrice(productId, await getDefaultCurrency()),
+    getProductAvailability(productId),
+  ]);
+
+  return <LiveVariantDelivery availability={availability} price={price} />;
 }
 
 async function Specifications({ product }: { product: NonNullable<Awaited<ReturnType<typeof getProduct>>> }) {

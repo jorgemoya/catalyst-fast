@@ -49,6 +49,15 @@ const nextConfig: NextConfig = {
      * nothing. `BUILD_WORKERS` raises it for stores with a higher limit.
      */
     cpus: Number(process.env.BUILD_WORKERS) || 2,
+    /*
+     * Lets `@next/playwright`'s `instant()` hold back dynamic data so a test can
+     * assert what a navigation shows from prefetched data alone. A **build-time**
+     * flag (compiled into the client bundle), off unless the e2e build asks for
+     * it — `pnpm build:e2e`. Without it `instant()` is a silent no-op against a
+     * production build: the instant-navigation tests passed even with the
+     * prefetch they guard switched off. Never set it for a deploy.
+     */
+    exposeTestingApiInProductionBuild: process.env.NEXT_EXPOSE_TESTING_API === '1',
   },
 
   // Prefetch the static parts of a route ahead of navigation.

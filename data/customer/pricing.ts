@@ -75,7 +75,7 @@ export async function getPersonalizedPrice(
   optionValueIds: readonly OptionValueId[] = [],
 ): Promise<Price | undefined | null> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 

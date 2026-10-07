@@ -153,8 +153,11 @@ client-owned variant selection, specs, reviews, related products, and JSON-LD
 | Cold request | 5 product-scoped queries (Catalyst: 7) |
 | Seeded products | `○ (Static)` — fully prerendered, 30s revalidate |
 
-Tests: `pnpm test` (105 unit) and `pnpm e2e` (21 Playwright). See
-`docs/testing.md` — five bugs have shipped past typecheck, lint, and build.
+Tests: `pnpm test` (unit) and `pnpm e2e` (Playwright, against a production
+build). **Build with `pnpm build:e2e` first** — it compiles in the testing API
+that `e2e/instant.spec.ts` needs; against a plain `pnpm build`, `instant()` holds
+nothing back and those tests fail their own self-check. See `docs/testing.md` —
+five bugs have shipped past typecheck, lint, and build.
 
 Next: Phase 4 — cart and checkout handoff. Establishes the
 `updateTag` + `refresh()` invalidation contract.

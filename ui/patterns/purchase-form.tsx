@@ -36,6 +36,7 @@ import {
 import { cn } from '~/lib/cn';
 import { formatCurrencyIn } from '~/lib/i18n/messages';
 import { Link } from '~/ui/primitives/link';
+import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { OptionField } from './option-fields';
 import { QuantityStepper } from './quantity-stepper';
@@ -79,30 +80,31 @@ interface Props {
   /** Server-rendered default variant state, shown until the shopper changes something. */
   initial: VariantSnapshot;
   /**
-   * The default variant's stock, streamed in after the shell.
+   * The default variant's **price and stock**, streamed in after the shell.
    *
-   * Stock changes by the second, and anything in the prerendered shell sets the
-   * whole page's lifetime — with availability inside it, every product page
-   * expired five minutes after it was built. So `initial.availability` arrives
-   * `null` and this slot renders a `<StockDelivery>` from a request-time
-   * boundary, which hands the value to *this* form instance: the shopper's
-   * selections and quantity survive it landing, which swapping in a second
-   * form would not.
+   * Both change by the minute, and the shortest-lived cached thing in a page
+   * sets how long the *browser* keeps the whole page — with price inside it, a
+   * product page was dropped five minutes after a visit and the next click
+   * showed a full-page skeleton. So `initial` arrives without them and this slot
+   * renders a `<LiveVariantDelivery>` from a request-time boundary, which hands
+   * the values to *this* form instance: the shopper's selections and quantity
+   * survive it landing, which swapping in a second form would not. The rest of
+   * the page can then stay in the browser for an hour (`product` profile).
    */
-  stockSlot?: ReactNode;
+  liveSlot?: ReactNode;
 }
 
-const StockContext = createContext<
-  ((availability: VariantSnapshot['availability']) => void) | null
->(null);
+type LiveValues = Pick<VariantSnapshot, 'price' | 'availability'>;
 
-/** Delivers streamed default-variant stock to the enclosing `PurchaseForm`. */
-export function StockDelivery({ availability }: { availability: VariantSnapshot['availability'] }) {
-  const deliver = useContext(StockContext);
+const LiveContext = createContext<((values: LiveValues) => void) | null>(null);
+
+/** Delivers the streamed default-variant price and stock to the enclosing `PurchaseForm`. */
+export function LiveVariantDelivery({ price, availability }: LiveValues) {
+  const deliver = useContext(LiveContext);
 
   useEffect(() => {
-    deliver?.(availability);
-  }, [deliver, availability]);
+    deliver?.({ price, availability });
+  }, [deliver, price, availability]);
 
   return null;
 }
@@ -115,7 +117,7 @@ export function PurchaseForm({
   quantityLimits,
   initial,
   priceOverlay,
-  stockSlot,
+  liveSlot,
 }: Props) {
   const t = useTranslations();
 
@@ -123,23 +125,24 @@ export function PurchaseForm({
   const [selection, setSelection] = useState<Selection>(() => defaultSelection(fields));
   const [snapshot, setSnapshot] = useState(initial);
   /*
-   * Whether the snapshot's stock is real. False until either the streamed
-   * default-variant stock lands or the shopper picks a variant (whose snapshot
-   * carries its own). Until then the CTA stays disabled rather than offering
-   * "Add to cart" on something that may be out of stock.
+   * Whether the snapshot's price and stock are real. False until either the
+   * streamed default-variant values land or the shopper picks a variant (whose
+   * snapshot carries its own). Until then the price shows a placeholder and the
+   * CTA stays disabled rather than offering "Add to cart" on something that may
+   * be out of stock.
    */
-  const [stockKnown, setStockKnown] = useState(initial.availability !== null || !stockSlot);
+  const [liveKnown, setLiveKnown] = useState(!liveSlot);
   // Set once the shopper's own selection owns the snapshot, so a late stream
   // for the *default* variant cannot overwrite it.
   const variantChosen = useRef(false);
 
-  const deliverStock = useCallback((availability: VariantSnapshot['availability']) => {
+  const deliverLive = useCallback((values: LiveValues) => {
     if (variantChosen.current) {
       return;
     }
 
-    setSnapshot((current) => ({ ...current, availability }));
-    setStockKnown(true);
+    setSnapshot((current) => ({ ...current, ...values }));
+    setLiveKnown(true);
   }, []);
   const [quantity, setQuantity] = useState(quantityLimits.min);
   const [isResolving, startTransition] = useTransition();
@@ -188,7 +191,7 @@ export function PurchaseForm({
 
       startTransition(async () => {
         setSnapshot(await getVariantSnapshot(productId, variantSelection(fields, next)));
-        setStockKnown(true);
+        setLiveKnown(true);
       });
     }
     // Intentionally once on mount: this reconciles the URL with the server's
@@ -252,27 +255,31 @@ export function PurchaseForm({
 
     startTransition(async () => {
       setSnapshot(await getVariantSnapshot(productId, variantSelection(fields, next)));
-      setStockKnown(true);
+      setLiveKnown(true);
     });
   };
 
   const blocked =
-    !stockKnown ||
+    !liveKnown ||
     (derived.cta?.disabled ?? false) ||
     missingRequired.length > 0 ||
     (derived.backorder?.exceedsAvailable ?? false);
 
   return (
-    <StockContext value={deliverStock}>
+    <LiveContext value={deliverLive}>
       <form action={formAction} className="flex flex-col gap-6">
-        {stockSlot}
+        {liveSlot}
         {/*
         Both prices live here so the CSS `:has()` rule can hide the base one the
         moment an overlay lands, and so the overlay occupies the slot the base
         price vacated rather than appearing at the end of the form.
       */}
         <div data-price-slot>
-          <VariantPrice price={snapshot.price} stale={isResolving} />
+          {liveKnown ? (
+            <VariantPrice price={snapshot.price} stale={isResolving} />
+          ) : (
+            <Skeleton className="h-8 w-32" />
+          )}
           {priceOverlay}
         </div>
 
@@ -333,7 +340,7 @@ export function PurchaseForm({
           </p>
         )}
       </form>
-    </StockContext>
+    </LiveContext>
   );
 }
 

@@ -51,7 +51,7 @@ export const CURRENCY_COOKIE = 'cf.currency';
  */
 export async function getSelectedCurrency(): Promise<string> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const locale = await activeLocale();
   const [store, available] = await Promise.all([cookies(), getSwitchableCurrencies()]);

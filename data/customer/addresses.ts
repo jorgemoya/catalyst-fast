@@ -53,7 +53,7 @@ export interface CustomerAddress {
 
 export async function getAddresses(): Promise<CustomerAddress[]> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 

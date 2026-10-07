@@ -1,8 +1,9 @@
 # Testing
 
 ```bash
-pnpm test     # vitest — pure domain logic
-pnpm e2e      # playwright — rendering and interaction, against a production build
+pnpm test        # vitest — pure domain logic
+pnpm build:e2e   # production build + the testing API `instant()` needs
+pnpm e2e         # playwright — rendering and interaction, against that build
 ```
 
 ## Why both, and why e2e specifically
@@ -49,6 +50,14 @@ cached `data/` functions.
 Runs against a **production build**, not `next dev`. Everything the suite
 protects — static shells, PPR streaming, proxy rewrites — behaves differently in
 dev, so testing dev would test the wrong thing.
+
+**Build it with `pnpm build:e2e`.** `e2e/instant.spec.ts` uses `@next/playwright`'s
+`instant()` to assert what a click shows *before the server answers* — the only
+layer that sees skeletons, since every other test waits for content to appear
+eventually. `instant()` silently does nothing unless the build compiles in
+`experimental.exposeTestingApiInProductionBuild` (set by `NEXT_EXPOSE_TESTING_API=1`,
+never for a deploy). The product test checks the lock is actually held, so a
+plain build fails loudly instead of passing for the wrong reason.
 
 Covers: nav items are navigable, exactly one "Shop all" link per panel, internal
 routes 404, bogus vanity URLs 404, the listing shell contains real content rather

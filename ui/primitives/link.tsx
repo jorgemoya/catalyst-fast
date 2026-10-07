@@ -2,7 +2,7 @@
 
 import NextLink from 'next/link';
 import { useLocale } from 'next-intl';
-import type { ComponentPropsWithRef } from 'react';
+import { type ComponentPropsWithRef, useState } from 'react';
 
 import { localizeHref } from '~/lib/i18n/href';
 
@@ -35,8 +35,29 @@ import { localizeHref } from '~/lib/i18n/href';
  */
 export type LinkProps = ComponentPropsWithRef<typeof NextLink>;
 
-export function Link({ href, ...props }: LinkProps) {
+/*
+ * **Prefetching: the cheap shell on sight, the full page on intent.**
+ *
+ * With partial prefetching, a default `<Link>` in the viewport prefetches only
+ * the route's App Shell — shared by every link to that route, so a grid of 24
+ * product cards costs one prefetch, not 24. But the shell cannot hold anything
+ * that depends on the URL's `params`, and on a product page that is everything:
+ * the first click on any product showed the full-page skeleton.
+ *
+ * `prefetch={true}` resolves that per link, at the cost of one server render per
+ * *visible* link — which on a listing grid is one per card. So this upgrades a
+ * link to the full prefetch only when the shopper shows **intent**: pointer
+ * hover, touch start, or keyboard focus. That is what Catalyst's `Link` did too
+ * (hover → `router.prefetch`), and what Next's docs recommend for card grids.
+ * Hover usually precedes the click by a few hundred milliseconds, enough for a
+ * warm prefetch to land.
+ *
+ * An explicit `prefetch` from the caller always wins — `prefetch={false}` on
+ * checkout must never be upgraded.
+ */
+export function Link({ href, prefetch, onMouseEnter, onTouchStart, onFocus, ...props }: LinkProps) {
   const locale = useLocale();
+  const [intent, setIntent] = useState(false);
 
   /*
    * `href` may be a `UrlObject`. Only its `pathname` is a route, so that is the
@@ -47,5 +68,36 @@ export function Link({ href, ...props }: LinkProps) {
       ? localizeHref(href, locale)
       : { ...href, ...(href.pathname && { pathname: localizeHref(href.pathname, locale) }) };
 
-  return <NextLink href={localized} {...props} />;
+  if (prefetch !== undefined) {
+    return (
+      <NextLink
+        href={localized}
+        onFocus={onFocus}
+        onMouseEnter={onMouseEnter}
+        onTouchStart={onTouchStart}
+        prefetch={prefetch}
+        {...props}
+      />
+    );
+  }
+
+  return (
+    <NextLink
+      href={localized}
+      onFocus={(event) => {
+        setIntent(true);
+        onFocus?.(event);
+      }}
+      onMouseEnter={(event) => {
+        setIntent(true);
+        onMouseEnter?.(event);
+      }}
+      onTouchStart={(event) => {
+        setIntent(true);
+        onTouchStart?.(event);
+      }}
+      prefetch={intent ? true : null}
+      {...props}
+    />
+  );
 }

@@ -27,8 +27,10 @@ import { CartIcon, IconLink } from './icon-link';
  *
  * Catalyst fetched this with `cache: 'no-store'` on every request of every page.
  *
- * `cacheLife('cart')` puts `stale` at 30s, exactly `MIN_PREFETCHABLE_STALE`, so
- * the badge still participates in prefetches rather than dropping out of them.
+ * `cacheLife('session')` (stale 5 minutes) rather than the 30s `cart` profile:
+ * the shortest `stale` in a page sets how long the browser keeps the whole page,
+ * and the badge is on every page. See the profile's note in
+ * `lib/cache/profiles.ts`.
  *
  * Invalidation is `updateTag(tags.cart(id))` **plus `refresh()`** from every cart
  * action — see `lib/cart/revalidate.ts`. `updateTag` alone cannot reach this
@@ -36,7 +38,7 @@ import { CartIcon, IconLink } from './icon-link';
  */
 async function getBadgeCount(): Promise<number> {
   'use cache: private';
-  cacheLife('cart');
+  cacheLife('session');
 
   const cartId = await getCartId();
 

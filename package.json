@@ -16,6 +16,7 @@
     "dev": "dotenv -e .env.local -- next dev",
     "prebuild": "npm run build-config",
     "build": "dotenv -e .env.local -- next build",
+    "build:e2e": "npm run build-config && NEXT_EXPOSE_TESTING_API=1 dotenv -e .env.local -- next build",
     "start": "dotenv -e .env.local -- next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

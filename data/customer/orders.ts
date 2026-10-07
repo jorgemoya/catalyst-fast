@@ -92,7 +92,7 @@ export const ORDERS_PAGE_SIZE = 10;
 
 export async function getOrders(after?: string): Promise<OrderHistory | null> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 
@@ -238,7 +238,7 @@ export interface OrderDetail {
  */
 export async function getOrder(entityId: number): Promise<OrderDetail | null> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 

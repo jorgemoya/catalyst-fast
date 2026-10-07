@@ -21,7 +21,7 @@ import { AccountIcon, IconLink } from './icon-link';
  */
 async function getAccountState(): Promise<{ name: string; impersonated: boolean } | null> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 

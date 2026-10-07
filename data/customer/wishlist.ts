@@ -62,7 +62,7 @@ export interface Wishlist {
 
 export async function getWishlists(): Promise<Wishlist[]> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 
@@ -154,7 +154,7 @@ export interface WishlistDetail {
  */
 export async function getWishlist(entityId: number): Promise<WishlistDetail | null> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 

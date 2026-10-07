@@ -22,7 +22,7 @@ export async function ProductJsonLd({ productId }: { productId: number }) {
   /*
    * Request-time, like the stock in the purchase form: the offer's availability
    * is stock, and anything in the prerendered shell caps the whole page at the
-   * inventory lifetime (see `StreamedStock` in the page). It still streams in
+   * inventory lifetime (see `StreamedDefaultVariant` in the page). It still streams in
    * the same HTML response, so crawlers read it exactly as before.
    */
   await connection();

@@ -50,9 +50,9 @@ export interface CustomerProfile {
 
 export async function getCustomerProfile(): Promise<CustomerProfile | null> {
   'use cache: private';
-  // 30s keeps the scope prefetchable (MIN_PREFETCHABLE_STALE) without holding a
-  // stale name after the shopper edits their profile.
-  cacheLife({ stale: 30 });
+  // A profile edit can't leave a stale name behind: the action calls
+  // `refresh()` (via `revalidateCustomer`). See the `session` profile.
+  cacheLife('session');
 
   const session = await getSession();
 

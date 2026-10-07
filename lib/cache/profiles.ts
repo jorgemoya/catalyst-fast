@@ -65,6 +65,9 @@ export const SHELL_PROFILES = [
   'reviews',
   'price',
   'listing',
+  // Private, per-shopper — but session data rides in the App Shell too (Next's
+  // partial-prefetching docs: "the App Shell still carries session content").
+  'session',
 ] as const;
 
 /*
@@ -84,19 +87,31 @@ export const SHELL_PROFILES = [
  */
 export const cacheProfiles = {
   // ── In the static shell (stale >= MIN_SHELL_STALE) ──────────────────────────
+  /*
+   * **`stale: 3600` on everything a product page caches** — settings, product,
+   * reviews, session. `stale` is *client-side only*: how long the browser keeps a
+   * visited page before asking the server again, and the shortest `stale` in a
+   * page wins for the whole page. These are the profiles a product page is made
+   * of, so together they let a revisit within the hour render with no request
+   * and no skeleton. The parts that genuinely change by the minute — default
+   * price and stock — are not cached into the page at all; they stream at
+   * request time into their own boundary (`StreamedDefaultVariant`). The server
+   * keeps refreshing on `revalidate` regardless; a reload always gets it.
+   */
   /** Site settings, currencies, tax display, inventory display settings. */
-  settings: { stale: 300, revalidate: 3600, expire: 86_400 },
+  settings: { stale: 3600, revalidate: 3600, expire: 86_400 },
   /** Category tree, header nav, footer links. */
   navigation: { stale: 300, revalidate: 1800, expire: 86_400 },
   /** Product core content: name, description, media, options, specs. */
-  product: { stale: 300, revalidate: 900, expire: 86_400 },
+  product: { stale: 3600, revalidate: 900, expire: 86_400 },
   /** Webpages, blog posts — merchant content that changes rarely. */
   content: { stale: 300, revalidate: 3600, expire: 604_800 },
   /** Product reviews (read path). */
-  reviews: { stale: 300, revalidate: 3600, expire: 86_400 },
+  reviews: { stale: 3600, revalidate: 3600, expire: 86_400 },
   /**
-   * Prices. `stale: 300` is deliberate: it puts the default-variant price in the
-   * prerendered shell. Personalized prices never come through here — see
+   * Prices. On the product page they render at request time, so this `stale`
+   * no longer limits how long that page is kept; listing cards still carry
+   * their price in the shell. Personalized prices never come through here — see
    * `data/customer/pricing.ts`.
    */
   price: { stale: 300, revalidate: 300, expire: 3600 },
@@ -113,6 +128,28 @@ export const cacheProfiles = {
   search: { stale: 60, revalidate: 300, expire: 1800 },
   /** Cart by id. Invalidated precisely by `updateTag(tags.cart(id))`. */
   cart: { stale: 30, revalidate: 60, expire: 300 },
+
+  // ── Per-shopper, in the browser ────────────────────────────────────────────
+  /**
+   * `'use cache: private'` reads of the shopper's own state: cart badge, account
+   * menu, wishlist hearts, selected currency, personalized price. Only `stale`
+   * means anything here — these never reach a server store.
+   *
+   * **An hour, not 30 seconds, because the shortest `stale` in a page sets how
+   * long the browser keeps the *whole* page.** At 30s, these per-shopper
+   * bits made the router drop every product page half a minute after a visit:
+   * clicking back to a warm product showed the full-page skeleton (measured: no
+   * skeleton at 5s, skeleton at 40s, 75s and 200s). Product content can't sit
+   * in the prefetched App Shell — it depends on `params` — so nothing covered
+   * for it.
+   *
+   * Nothing a shopper does is delayed by this: every action that changes this
+   * state calls `refresh()`, and the currency switch sets a cookie, which also
+   * clears the browser's cache. What can lag, up to an hour in a tab left
+   * open, is a change made *elsewhere* — another tab, another device, a price
+   * list edited in the control panel.
+   */
+  session: { stale: 3600, revalidate: 3600, expire: 3600 },
 } as const satisfies Record<string, CacheProfile>;
 
 

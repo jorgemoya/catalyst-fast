@@ -57,7 +57,7 @@ interface ToggleState {
  */
 async function getWishlistState(): Promise<ToggleState> {
   'use cache: private';
-  cacheLife({ stale: 30 });
+  cacheLife('session');
 
   const session = await getSession();
 
