@@ -137,7 +137,7 @@ const toSortValue = (bcSort: string | null | undefined): SortValue =>
   fromBcSort(bcSort) ?? 'relevance';
 
 export async function getStoreSettings(): Promise<StoreSettings> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

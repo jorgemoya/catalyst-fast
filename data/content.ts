@@ -108,7 +108,7 @@ const EMPTY_SEO = { pageTitle: '', metaDescription: '', metaKeywords: '' };
  * stable, so it makes a fine cache key.
  */
 export async function getWebpage(id: string): Promise<WebPage | null> {
-  'use cache';
+  'use cache: remote';
   cacheLife('content');
   cacheTag(tags.webpage(id), tags.content);
 
@@ -204,7 +204,7 @@ export const BLOG_PAGE_SIZE = 9;
  * fragmenting the cache the way an arbitrary query string would.
  */
 export async function getBlogPosts(tag?: string, after?: string): Promise<BlogIndex | null> {
-  'use cache';
+  'use cache: remote';
   cacheLife('content');
   cacheTag(tags.content);
 
@@ -294,7 +294,7 @@ export interface BlogPost {
 }
 
 export async function getBlogPost(entityId: number): Promise<BlogPost | null> {
-  'use cache';
+  'use cache: remote';
   cacheLife('content');
   cacheTag(tags.blogPost(entityId), tags.content);
 

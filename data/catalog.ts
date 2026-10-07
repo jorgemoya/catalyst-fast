@@ -183,7 +183,7 @@ export async function getCategory(entityId: number): Promise<CategoryPage | null
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedCategory(entityId: number): Promise<CategoryPage | null> {
-  'use cache';
+  'use cache: remote';
 
   return loadCategory(query, entityId);
 }
@@ -234,7 +234,7 @@ export async function getBrand(entityId: number): Promise<BrandPage | null> {
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedBrand(entityId: number): Promise<BrandPage | null> {
-  'use cache';
+  'use cache: remote';
 
   return loadBrand(query, entityId);
 }

@@ -1,4 +1,4 @@
-import { type CategoryNode, getCategoryBranch, getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
+import { type CategoryNode, getMenuBranches, getTopLevelCategories, NAV_LIMITS } from '~/data/navigation';
 import { Skeleton } from '~/ui/primitives/skeleton';
 
 import { NavMenu, NavMenuItem, NavPanelLink } from './nav-menu';
@@ -7,10 +7,11 @@ import { NavMenu, NavMenuItem, NavPanelLink } from './nav-menu';
  * Mega-menu contents: an async Server Component rendering into the client shell
  * as `children`, so no category data crosses the RSC boundary as props.
  *
- * Each visible panel's branch is fetched separately, so the bar's cost is
+ * Only the visible panels' branches are fetched, so the bar's cost is
  * proportional to what is *displayed* (`NAV_LIMITS.header` panels) rather than to
  * catalog size. The previous single 3-level query returned the entire tree
  * regardless of how much was rendered — unusable on a store with 1000 categories.
+ * They arrive in one aliased request (`getMenuBranches`) rather than one each.
  *
  * Branches are resolved here rather than inside each panel because
  * `NavMenuItem` needs to know whether a category *has* children before it
@@ -23,8 +24,8 @@ export async function CategoryNav() {
   const categories = await getTopLevelCategories();
   const visible = categories.slice(0, NAV_LIMITS.header);
 
-  // Parallel, and every one is a cached read — on a warm cache this is free.
-  const branches = await Promise.all(visible.map((category) => getCategoryBranch(category.id)));
+  // One cached read for every panel — on a warm cache this is free.
+  const branches = await getMenuBranches(visible.map((category) => category.id));
 
   return (
     <NavMenu>

@@ -79,7 +79,7 @@ export type GiftCertificateSettings =
 const DISABLED: GiftCertificateSettings = { enabled: false };
 
 export async function getGiftCertificateSettings(): Promise<GiftCertificateSettings> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

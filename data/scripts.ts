@@ -71,7 +71,7 @@ export type MerchantScript = {
  * conversion pixels and inflate the merchant's reported revenue.
  */
 export async function getMerchantScripts(): Promise<MerchantScript[]> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

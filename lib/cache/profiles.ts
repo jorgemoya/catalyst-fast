@@ -17,10 +17,22 @@
  * is a deliberate choice to put that data in the prerendered shell, and anything
  * under 300 is a deliberate choice to make it a streamed hole.
  *
- * Treat `revalidate` as a safety net only. Freshness is driven by BigCommerce
- * webhooks calling `revalidateTag` (see `app/api/webhooks/bigcommerce`), which is
- * what turns origin QPS from "proportional to traffic" into "proportional to
- * catalog change rate".
+ * **`revalidate` is the freshness guarantee.** There are no BigCommerce webhooks
+ * (a decision, recorded in the plan's Phase 9), so a product edit shows up within
+ * the `product` profile's `revalidate`, a settings change within `settings`'s.
+ * Raising these trades freshness for origin load directly.
+ *
+ * **Which directive.** Profiles say *how long*; the directive says *where*.
+ * Shared catalog reads in `data/` are `'use cache: remote'`. Plain `'use cache'`
+ * is per-instance memory, and measured on a fresh `next start`, every page —
+ * prebuilt or not — re-ran its header, settings and page reads to render its
+ * request-time parts: 13 shared reads plus the page's own, per instance. On
+ * serverless, where instances are many and short-lived, that is paid again and
+ * again against BigCommerce's rate limit. Remote makes it once per region.
+ * Plain `'use cache'` is kept only for build-time reads (`getProductIds` and
+ * friends), where there is no instance to share with. Self-hosted without
+ * `CACHE_HANDLER=kv`, remote falls back to the same in-memory handler, so the
+ * choice costs nothing there.
  */
 
 export interface CacheProfile {

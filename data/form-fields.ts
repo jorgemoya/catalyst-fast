@@ -118,7 +118,7 @@ export interface StoreFormFields {
 }
 
 export async function getFormFields(): Promise<StoreFormFields> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

@@ -55,7 +55,7 @@ export interface RecaptchaSettings {
  * there is no way to render the widget without having proven it should exist.
  */
 export async function getRecaptchaSettings(): Promise<RecaptchaSettings | null> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

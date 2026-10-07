@@ -56,7 +56,7 @@ export interface Country {
 export const AMBIGUOUS_US_ABBREVIATIONS = new Set(['AA', 'AE', 'AP']);
 
 export async function getCountries(): Promise<Country[]> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

@@ -104,7 +104,7 @@ const DEFAULT_INVENTORY_SETTINGS: InventorySettings = {
  * PDP costs zero extra requests for it once any page has warmed it.
  */
 export async function getInventorySettings(): Promise<InventorySettings> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings, tags.inventory);
 

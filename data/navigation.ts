@@ -4,7 +4,7 @@ import { currentAudience } from '~/lib/audience';
 import { query } from '~/lib/bigcommerce';
 import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
-import { graphql } from '~/lib/bigcommerce/graphql';
+import { graphql, readFragment, type ResultOf } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
 
 import { activeLocale } from './locale';
@@ -80,6 +80,66 @@ const CategoryBranchQuery = graphql(`
     }
   }
 `);
+
+const MenuBranchFragment = graphql(`
+  fragment MenuBranch on CategoryTreeItem {
+    entityId
+    name
+    path
+    children {
+      entityId
+      name
+      path
+      children {
+        entityId
+        name
+        path
+      }
+    }
+  }
+`);
+
+/**
+ * Every mega-menu panel in **one request**: one aliased `categoryTree` per
+ * header slot. Each alias is the same bounded two-level branch
+ * `CategoryBranchQuery` fetches, so the response still scales with what the
+ * header displays, never with the catalog — it just arrives in one round trip
+ * instead of six. Measured before: 6 `CategoryBranch` calls on every cold render.
+ *
+ * Six slots because `NAV_LIMITS.header` is six; `MENU_SLOTS` below fails the
+ * type check if the two drift. `rootEntityId` is nullable in the schema and
+ * `null` means "the whole tree", so unused slots repeat a real id rather than
+ * being left empty.
+ */
+const MenuBranchesQuery = graphql(
+  `
+  query MenuBranches($r0: Int!, $r1: Int!, $r2: Int!, $r3: Int!, $r4: Int!, $r5: Int!) {
+    site {
+      b0: categoryTree(rootEntityId: $r0) {
+        ...MenuBranch
+      }
+      b1: categoryTree(rootEntityId: $r1) {
+        ...MenuBranch
+      }
+      b2: categoryTree(rootEntityId: $r2) {
+        ...MenuBranch
+      }
+      b3: categoryTree(rootEntityId: $r3) {
+        ...MenuBranch
+      }
+      b4: categoryTree(rootEntityId: $r4) {
+        ...MenuBranch
+      }
+      b5: categoryTree(rootEntityId: $r5) {
+        ...MenuBranch
+      }
+    }
+  }
+`,
+  [MenuBranchFragment],
+);
+
+const MENU_SLOTS = 6 satisfies (typeof NAV_LIMITS)['header'];
 
 const SiteLinksQuery = graphql(`
   query SiteLinks($first: Int!) {
@@ -162,7 +222,7 @@ export async function getTopLevelCategories(): Promise<Array<NavLink & { id: num
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedTopLevelCategories(): Promise<Array<NavLink & { id: number }>> {
-  'use cache';
+  'use cache: remote';
 
   return loadTopLevelCategories(query);
 }
@@ -223,7 +283,7 @@ export async function getCategoryBranch(rootEntityId: number): Promise<CategoryN
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedCategoryBranch(rootEntityId: number): Promise<CategoryNode[]> {
-  'use cache';
+  'use cache: remote';
 
   return loadCategoryBranch(query, rootEntityId);
 }
@@ -236,6 +296,75 @@ async function restrictedCategoryBranch(rootEntityId: number): Promise<CategoryN
   'use cache: private';
 
   return loadCategoryBranch(restrictedQuery, rootEntityId);
+}
+
+type MenuBranchItem = ResultOf<typeof MenuBranchFragment>;
+
+const toBranch = (root: MenuBranchItem | undefined): CategoryNode[] =>
+  (root?.children ?? []).map((child) => ({
+    id: child.entityId,
+    label: child.name,
+    href: child.path,
+    children: child.children.map((grandchild) => ({
+      id: grandchild.entityId,
+      label: grandchild.name,
+      href: grandchild.path,
+      children: [],
+    })),
+  }));
+
+/** The branches under each of `rootEntityIds`, in order — one request. */
+async function loadMenuBranches(
+  fetchCatalog: CatalogFetcher,
+  rootEntityIds: readonly number[],
+): Promise<CategoryNode[][]> {
+  cacheLife('navigation');
+  cacheTag(tags.navigation, tags.categories, ...rootEntityIds.map((id) => tags.category(id)));
+
+  const [first] = rootEntityIds;
+
+  if (first === undefined) {
+    return [];
+  }
+
+  const ids = Array.from({ length: MENU_SLOTS }, (_, slot) => rootEntityIds[slot] ?? first);
+  const data = await fetchCatalog({
+    document: MenuBranchesQuery,
+    variables: { r0: ids[0]!, r1: ids[1]!, r2: ids[2]!, r3: ids[3]!, r4: ids[4]!, r5: ids[5]! },
+    locale: await activeLocale(),
+  });
+  const { b0, b1, b2, b3, b4, b5 } = data.site;
+
+  return [b0, b1, b2, b3, b4, b5]
+    .slice(0, rootEntityIds.length)
+    .map((tree) => toBranch(readFragment(MenuBranchFragment, tree[0])));
+}
+
+// cache-audit: dispatch — picks the shared or the customer-group catalog by the
+// `[audience]` root param; both branches below carry a cache directive.
+export async function getMenuBranches(rootEntityIds: readonly number[]): Promise<CategoryNode[][]> {
+  const ids = rootEntityIds.slice(0, MENU_SLOTS);
+
+  return (await currentAudience()) === 'restricted'
+    ? restrictedMenuBranches(ids)
+    : sharedMenuBranches(ids);
+}
+
+/** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
+async function sharedMenuBranches(rootEntityIds: readonly number[]): Promise<CategoryNode[][]> {
+  'use cache: remote';
+
+  return loadMenuBranches(query, rootEntityIds);
+}
+
+/**
+ * Customer-group catalog — fetched with the shopper's token, so it lives only in
+ * a private scope (browser memory, never a shared server cache).
+ */
+async function restrictedMenuBranches(rootEntityIds: readonly number[]): Promise<CategoryNode[][]> {
+  'use cache: private';
+
+  return loadMenuBranches(restrictedQuery, rootEntityIds);
 }
 
 /** Brand and CMS-page links for the footer. */
@@ -277,7 +406,7 @@ export async function getSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLin
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedSiteLinks(): Promise<{ brands: NavLink[]; pages: NavLink[] }> {
-  'use cache';
+  'use cache: remote';
 
   return loadSiteLinks(query);
 }

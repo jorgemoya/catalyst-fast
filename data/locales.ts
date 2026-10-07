@@ -59,7 +59,7 @@ export interface StoreLocale {
 }
 
 export async function getLocales(): Promise<StoreLocale[]> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

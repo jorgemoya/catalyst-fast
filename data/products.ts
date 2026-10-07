@@ -93,7 +93,7 @@ export async function getFeaturedProducts(currency: string, first = 8): Promise<
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedFeaturedProducts(currency: string, first = 8): Promise<ProductCard[]> {
-  'use cache';
+  'use cache: remote';
 
   return loadFeaturedProducts(query, currency, first);
 }
@@ -140,7 +140,7 @@ export async function getNewestProducts(currency: string, first = 8): Promise<Pr
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedNewestProducts(currency: string, first = 8): Promise<ProductCard[]> {
-  'use cache';
+  'use cache: remote';
 
   return loadNewestProducts(query, currency, first);
 }

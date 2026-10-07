@@ -67,7 +67,7 @@ export interface StoreCurrency {
 }
 
 export async function getSwitchableCurrencies(): Promise<StoreCurrency[]> {
-  'use cache';
+  'use cache: remote';
   cacheLife('settings');
   cacheTag(tags.settings);
 

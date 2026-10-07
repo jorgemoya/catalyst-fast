@@ -12,9 +12,9 @@ import { PaymentIcons } from './payment-icons';
 import { SocialLinks } from './social-links';
 
 /**
- * Site footer. Entirely server-rendered from two cached reads, both of which are
- * already in memory by the time this renders (the header uses the same entries),
- * so the footer costs zero additional BigCommerce requests.
+ * Site footer. Entirely server-rendered from two cached reads; the top-level
+ * categories are the same entry the header already read, so the footer adds at
+ * most the site-links read, and nothing once that entry is warm.
  */
 export function Footer() {
   return (

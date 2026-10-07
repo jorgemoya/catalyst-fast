@@ -259,7 +259,7 @@ export async function getProduct(entityId: number): Promise<Product | null> {
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
 async function sharedProduct(entityId: number): Promise<Product | null> {
-  'use cache';
+  'use cache: remote';
 
   return loadProduct(query, entityId);
 }
@@ -374,7 +374,7 @@ async function sharedRelatedProducts(
   entityId: number,
   currency: string,
 ): Promise<RelatedProduct[]> {
-  'use cache';
+  'use cache: remote';
 
   return loadRelatedProducts(query, entityId, currency);
 }
@@ -484,7 +484,7 @@ async function sharedProductReviews(
   first = 5,
   after: string | null = null,
 ): Promise<{ reviews: Review[]; hasNextPage: boolean; endCursor: string | null }> {
-  'use cache';
+  'use cache: remote';
 
   return loadProductReviews(query, entityId, first, after);
 }
@@ -670,7 +670,7 @@ async function sharedMoreProductImages(
   entityId: number,
   after: string,
 ): Promise<{ images: ProductImage[]; nextCursor: string | null }> {
-  'use cache';
+  'use cache: remote';
 
   return loadMoreProductImages(query, entityId, after);
 }
