@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { PRODUCT_WITH_OPTIONS } from './fixtures';
+import { PRODUCT_WITH_OPTIONS, waitForHydration } from './fixtures';
 
 /**
  * The full option matrix, on the one product that exercises ten of BigCommerce's
@@ -15,6 +15,7 @@ import { PRODUCT_WITH_OPTIONS } from './fixtures';
 
 /** Fills every non-variant control with a value that passes validation. */
 async function fillPersonalization(page: import('@playwright/test').Page) {
+  await waitForHydration(page, '[data-testid="add-to-cart"]');
   await page.locator('textarea[name^="option."]').fill('Happy birthday Ana!');
   await page.locator('input[type="text"][name^="option."]').fill('Gift');
   await page.locator('input[type="number"][name^="option."]').fill('3');
@@ -23,6 +24,8 @@ async function fillPersonalization(page: import('@playwright/test').Page) {
 
 /** Answers every required variant option, whatever control it renders as. */
 async function chooseRequiredOptions(page: import('@playwright/test').Page) {
+  await waitForHydration(page, '[data-testid="add-to-cart"]');
+
   for (const group of await page.locator('fieldset').all()) {
     const unset = group.locator('button[aria-pressed="false"]').first();
 

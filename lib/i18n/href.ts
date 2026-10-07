@@ -1,5 +1,4 @@
 import { DEFAULT_LOCALE, isLocale } from '~/lib/config/channels';
-import { LOCALE_EXEMPT_PATH } from '~/proxies/locale';
 
 /**
  * Adds the active locale to an internal href.
@@ -26,6 +25,8 @@ import { LOCALE_EXEMPT_PATH } from '~/proxies/locale';
 /** Never prefixed: not app routes, or deliberately outside the locale tree. */
 const NON_ROUTE = /^\/(?:_next|api)(?:\/|$)/u;
 
+const SSO_LANDING = /^\/login\/token\//u;
+
 export function localizeHref(href: string, locale: string): string {
   // The default locale is served from unprefixed URLs — adding `/en` would
   // produce a redirect on every click.
@@ -47,11 +48,16 @@ export function localizeHref(href: string, locale: string): string {
   }
 
   /*
-   * `/checkout/` and `/login/token/…` live outside `[locale]` — the proxy
-   * exempts them on the way in, so a prefixed link would 404. Same regex, so
-   * the two rules cannot drift.
+   * `/login/token/…` is an SSO landing URL BigCommerce builds itself; it is
+   * never localized, so a link to one is left as written.
+   *
+   * `/checkout/` **is** prefixed, although its route handler lives outside
+   * `[locale]`: the proxy strips `/es` before matching it (`LOCALE_EXEMPT_PATH`)
+   * and forwards the locale as a header. That header is how checkout knows the
+   * shopper's channel — and so which channel's cart to hand to BigCommerce.
+   * Unprefixed, every locale checked out the default channel's cart.
    */
-  if (LOCALE_EXEMPT_PATH.test(href)) {
+  if (SSO_LANDING.test(href)) {
     return href;
   }
 

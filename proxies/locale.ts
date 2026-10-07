@@ -101,12 +101,12 @@ export function shouldStripPrefix({ locale, hadPrefix }: DetectedLocale): boolea
 export const LOCALE_HEADER = 'x-cf-locale';
 
 /**
- * Paths that live **outside** the `[locale]` segment.
+ * Paths whose route handlers live **outside** the `[locale]` segment.
  *
- * `/checkout/` hands off to BigCommerce and `/login/token/…` is an SSO landing
- * route; neither has a localized variant. The proxy skips prefixing them on the
- * way in, and `lib/i18n/href.ts` skips prefixing links to them on the way out —
- * both read this constant so the two can never disagree, which would show up as
- * a 404 on checkout for Spanish shoppers only.
+ * Tested against the path *after* any locale prefix is stripped, so
+ * `/es/checkout/` still reaches the top-level `/checkout/` handler — with `es` in
+ * the locale header, which is how checkout picks the shopper's channel. Links to
+ * checkout therefore carry the prefix (`lib/i18n/href.ts`); only the SSO
+ * landing URL, which BigCommerce builds itself, is left unprefixed.
  */
 export const LOCALE_EXEMPT_PATH = /^\/checkout\/?$|^\/login\/token\//u;

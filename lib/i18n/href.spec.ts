@@ -58,14 +58,19 @@ describe('localizeHref', () => {
     expect(localizeHref('/api/events', 'es')).toBe('/api/events');
   });
 
-  /*
-   * These live outside `[locale]`. A prefixed link would 404 — and would do so
-   * only for non-default locales, i.e. exactly the traffic nobody smoke-tests.
-   */
-  it('leaves locale-exempt routes unprefixed', () => {
-    expect(localizeHref('/checkout', 'es')).toBe('/checkout');
-    expect(localizeHref('/checkout/', 'es')).toBe('/checkout/');
+  // An SSO landing URL BigCommerce builds itself — never localized.
+  it('leaves SSO landing routes unprefixed', () => {
     expect(localizeHref('/login/token/abc123', 'es')).toBe('/login/token/abc123');
+  });
+
+  /*
+   * Checkout's route handler sits outside `[locale]`, but the link carries the
+   * prefix: the proxy strips it and forwards the locale, which is how checkout
+   * picks the shopper's channel and that channel's cart.
+   */
+  it('prefixes checkout so it knows the channel', () => {
+    expect(localizeHref('/checkout', 'es')).toBe('/es/checkout');
+    expect(localizeHref('/checkout/', 'es')).toBe('/es/checkout/');
   });
 
   it('still localizes ordinary login and cart routes, which are not exempt', () => {

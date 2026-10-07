@@ -74,7 +74,7 @@ test.describe('sign in', () => {
     /*
      * The cart merge, which is BigCommerce's to perform: `login` is given
      * `guestCartEntityId` and returns the resulting cart, which the sign-in
-     * callback writes back to the same `cf.cart` cookie.
+     * callback writes back to the same cart cookie.
      *
      * Adding as a guest first is what makes this a real test — signing in with an
      * empty cart would pass whether or not the merge works.

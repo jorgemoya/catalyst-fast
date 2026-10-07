@@ -102,13 +102,19 @@ const CartQuery = graphql(
  * The cart page's single read. Returns `null` when BigCommerce has no such cart —
  * an expired or already-checked-out id in the cookie — which callers treat the
  * same as an empty cart.
+ *
+ * **Keyed by locale as well as cart id.** Line items carry catalog text —
+ * product names, option labels — which BigCommerce translates per
+ * `Accept-Language` and per channel. Keyed by id alone, the cart read on the
+ * default channel and in English for every locale. The tag stays per cart, so
+ * one `updateTag(tags.cart(id))` still invalidates every locale's entry.
  */
-export async function getCart(cartId: string): Promise<Cart | null> {
+export async function getCart(cartId: string, locale: string): Promise<Cart | null> {
   'use cache: remote';
   cacheLife('cart');
   cacheTag(tags.cart(cartId));
 
-  const data = await query({ document: CartQuery, variables: { cartId } });
+  const data = await query({ document: CartQuery, variables: { cartId }, locale });
 
   if (!data.site.cart) {
     return null;
@@ -140,6 +146,10 @@ const CartCountQuery = graphql(`
  * (cache key, cacheLife) tuple" rule applied in the other direction: two
  * consumers with genuinely different needs get two entries. Both carry
  * `tags.cart(cartId)`, so one `updateTag` still invalidates both together.
+ *
+ * Not keyed by locale, unlike `getCart`: a quantity has no text to translate,
+ * and the cart is found by its id on any channel, so one entry serves every
+ * locale.
  */
 export async function getCartCount(cartId: string): Promise<number | null> {
   'use cache: remote';

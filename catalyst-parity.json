@@ -5,7 +5,7 @@
     "remote": "origin",
     "tagPrefix": "@bigcommerce/catalyst-core@"
   },
-  "baseline": "1.12.1",
+  "baseline": "1.12.2",
   "decisions": {
     "3170": {
       "status": "ported",
@@ -38,6 +38,18 @@
     "3194": {
       "status": "not-applicable",
       "note": "Upstream's reusable GitHub Actions preview-deployment workflow for its own monorepo; no storefront behaviour."
+    },
+    "3239": {
+      "status": "ported",
+      "note": "hosting + channel_id meta tags in the root layout's generateMetadata (app/[locale]/[audience]/layout.tsx). Also added platform, build_sha and store_hash, which were missing since the 1.11 baseline. channel_id comes from the locale's configured channel."
+    },
+    "3246": {
+      "status": "ported",
+      "note": "hosting falls back to vercel/other — same expression as upstream."
+    },
+    "3244": {
+      "status": "ported",
+      "note": "Cart cookie keyed by channel (cf.cart.<channelId>) in lib/cart/session.ts; legacy cf.cart adopted by the default channel. Required mutate() to default its channel to the request locale (every write previously hit the default channel) and /checkout links to carry the locale prefix so checkout knows the channel. getCart is keyed by locale too, so line items read on the shopper's channel and language."
     }
   }
 }

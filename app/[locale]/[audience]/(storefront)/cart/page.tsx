@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { getCart } from '~/data/cart';
 import { getCountries } from '~/data/geography';
 import { getCartId } from '~/lib/cart/session';
+import { activeLocale } from '~/lib/currency';
 import { getWalletButtons } from '~/data/wallets';
 import { CheckoutPreconnect } from '~/ui/patterns/checkout-preconnect';
 import { WalletButtons } from '~/ui/patterns/wallet-buttons';
@@ -63,7 +64,7 @@ async function CartContents() {
   const t = await getT();
 
   const cartId = await getCartId();
-  const cart = cartId ? await getCart(cartId) : null;
+  const cart = cartId ? await getCart(cartId, await activeLocale()) : null;
 
   // A cookie pointing at a cart BigCommerce has already dropped or converted to
   // an order reads the same as no cart at all.

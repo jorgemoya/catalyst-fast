@@ -8,7 +8,9 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getT } from '~/lib/i18n/server';
 import { WebVitals } from '~/ui/patterns/web-vitals';
 import { getLocales } from '~/data/locales';
-import { DEFAULT_LOCALE } from '~/lib/config/channels';
+import { channelFor, DEFAULT_LOCALE } from '~/lib/config/channels';
+import { env } from '~/lib/env';
+import { normalizeLocale } from '~/lib/i18n/messages';
 
 import '~/styles/globals.css';
 
@@ -43,12 +45,27 @@ const inter = localFont({
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
+  const activeLocale = normalizeLocale(await locale());
 
   return {
     metadataBase: new URL(buildConfig.get('urls').vanityUrl),
     title: {
       template: `%s | ${t('Common.storeName')}`,
       default: t('Common.storeName'),
+    },
+    /*
+     * Catalyst's identification tags, kept identical so BigCommerce Support's
+     * tooling recognises this storefront: which store, which channel, which
+     * build, and where it is hosted (upstream #3239, #3246). All build- or
+     * route-derived, so the shell stays static. `channel_id` comes from the
+     * locale's configured channel rather than a settings query.
+     */
+    other: {
+      platform: 'bigcommerce.catalyst',
+      build_sha: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? '',
+      store_hash: env.BIGCOMMERCE_STORE_HASH,
+      channel_id: channelFor(activeLocale).channelId,
+      hosting: process.env.CATALYST_HOSTING ?? (env.VERCEL ? 'vercel' : 'other'),
     },
   };
 }

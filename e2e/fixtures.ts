@@ -56,3 +56,24 @@ export const SEARCH_TERM = 'towel';
  * the catalog.
  */
 export const PRODUCT_WITH_MANY_IMAGES = '/utility-caddy/';
+
+/**
+ * Waits until React has hydrated the element matching `selector`.
+ *
+ * Server HTML is interactive-looking long before it is interactive. Controls
+ * that only work through client state — option swatches, toggles — silently
+ * drop a click that lands before hydration, and under a loaded parallel run
+ * that window is wide enough to hit: the option tests failed by adding nothing
+ * at all. `load` is not a substitute; it fires before the streamed parts of the
+ * page have hydrated. React marks a hydrated node with a `__reactFiber$…` key.
+ */
+export async function waitForHydration(
+  page: import('@playwright/test').Page,
+  selector: string,
+): Promise<void> {
+  await page.waitForFunction((target) => {
+    const element = document.querySelector(target);
+
+    return element !== null && Object.keys(element).some((key) => key.startsWith('__reactFiber'));
+  }, selector);
+}

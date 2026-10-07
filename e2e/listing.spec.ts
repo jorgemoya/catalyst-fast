@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { CATEGORY } from './fixtures';
+import { CATEGORY, waitForHydration } from './fixtures';
 
 
 
@@ -56,6 +56,7 @@ test.describe('refinement', () => {
    */
   test('applying a facet narrows the result count', async ({ page }) => {
     await page.goto('/shop-all/');
+    await waitForHydration(page, '[data-testid="result-count"]');
 
     const countOf = async (): Promise<number> => {
       const text = await page.getByTestId('result-count').last().innerText();
@@ -69,10 +70,18 @@ test.describe('refinement', () => {
      * Facet groups render as `<details>`, and a collapsed one hides its links —
      * which group is open depends on the merchant's `isCollapsedByDefault`, so a
      * bare `.first()` can latch onto an option that never becomes clickable.
+     *
+     * One `evaluate` over whatever is in the DOM, not `.all()` + an evaluate per
+     * element: `.all()` returns *positional* locators, and when the stream
+     * replaces the listing's fallback the number of `<details>` drops — the
+     * evaluate on a position that no longer exists then waited out the whole
+     * test timeout. Only under load, when the stream was still landing.
      */
-    for (const group of await page.locator('details').all()) {
-      await group.evaluate((element) => ((element as HTMLDetailsElement).open = true));
-    }
+    await page.evaluate(() => {
+      for (const element of document.querySelectorAll('details')) {
+        element.open = true;
+      }
+    });
 
     /*
      * Pick an option whose own product count is **strictly less** than the

@@ -74,6 +74,8 @@ test.describe('add to cart', () => {
     await page.goto(SIMPLE_PRODUCT);
 
     await context.addCookies([
+      // The legacy, channel-less cookie — also proves the default channel
+      // still adopts it (`lib/cart/session.ts`).
       { name: 'cf.cart', value: '00000000-0000-4000-8000-000000000000', url: page.url() },
     ]);
 
@@ -209,6 +211,52 @@ test.describe('checkout handoff', () => {
     expect(response.status()).toBe(302);
     expect(response.headers().location).toMatch(/^https?:\/\//);
     expect(response.headers()['cache-control']).toContain('no-store');
+  });
+
+  /*
+   * Checkout must hand over *this channel's* cart. The link carries the locale
+   * so the handler can tell which channel the shopper is on (upstream #3244);
+   * unprefixed, every locale checked out the default channel's cart.
+   */
+  test('a Spanish shopper checks out from the Spanish route', async ({ page }) => {
+    await page.goto(`/es${SIMPLE_PRODUCT}`);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    // Read on the Spanish channel, from its own locale-keyed cache entry.
+    await page.goto('/es/cart/');
+    await expect(page.getByTestId('cart-items').getByRole('listitem')).toHaveCount(1);
+    await expect(page.getByTestId('checkout')).toHaveAttribute('href', /^\/es\/checkout\/?$/u);
+
+    const response = await page.request.get('/es/checkout/', { maxRedirects: 0 });
+
+    expect(response.status()).toBe(302);
+    expect(response.headers().location).toMatch(/^https?:\/\//);
+  });
+
+  test('an empty Spanish checkout returns to the Spanish cart', async ({ page }) => {
+    const response = await page.request.get('/es/checkout/', { maxRedirects: 0 });
+
+    expect(response.status()).toBe(302);
+    expect(new URL(response.headers().location ?? '').pathname).toBe('/es/cart/');
+  });
+});
+
+/*
+ * One cart per channel (upstream #3244). The cookie is keyed by the channel the
+ * locale maps to, so a store that gives locales separate channels keeps their
+ * carts apart.
+ */
+test.describe('cart cookie', () => {
+  test('is keyed by channel', async ({ page, context }) => {
+    await page.goto(SIMPLE_PRODUCT);
+    await page.getByTestId('add-to-cart').click();
+    await expect(page.getByTestId('cart-count')).toHaveText('1');
+
+    const names = (await context.cookies()).map((cookie) => cookie.name);
+
+    expect(names.some((name) => /^cf\.cart\.\d+$/u.test(name))).toBe(true);
+    expect(names).not.toContain('cf.cart');
   });
 });
 

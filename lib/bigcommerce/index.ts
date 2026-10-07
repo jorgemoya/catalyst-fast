@@ -1,8 +1,12 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
+
 import { env } from '~/lib/env';
 
 import { channelFor } from '~/lib/config/channels';
+import { normalizeLocale } from '~/lib/i18n/messages';
+import { LOCALE_HEADER } from '~/proxies/locale';
 
 import { createClient } from './client';
 import type { ClientRequest } from './client/types';
@@ -122,21 +126,36 @@ export async function mutate<TResult, TVariables extends Record<string, unknown>
     customerAccessToken?: string;
   },
 ): Promise<TResult> {
+  /*
+   * A write must land on the same channel the shopper is reading from —
+   * otherwise, on a store where locales have separate channels, a cart is built
+   * against one catalog and priced against another, and the per-channel cart
+   * cookie (`lib/cart/session.ts`) points at a cart from the wrong channel.
+   *
+   * **Defaults to the request's locale**, not the client's configured channel.
+   * It used to be opt-in, and no cart, auth or account write opted in — so every
+   * one of them went to the default channel. A write is always request-scoped
+   * (`mutate` is banned from cached bodies by cache-audit), so the proxy's
+   * locale header is always there to read.
+   */
+  const locale = request.locale ?? (await requestLocale());
+
   const { data } = await bc.request<TResult, TVariables>({
     ...request,
-    /*
-     * A write must land on the same channel the shopper is reading from —
-     * otherwise, on a store where locales have separate channels, a cart is built
-     * against one catalog and priced against another.
-     *
-     * Optional, and omitting it keeps the client's configured default, which is
-     * today's behaviour on a single-channel store. Callers in a locale-aware path
-     * should pass it; `getTForAction`-style call sites already have the locale to
-     * hand via `activeLocale()`.
-     */
-    ...(request.locale && { channelId: channelFor(request.locale).channelId }),
+    headers: { ...request.headers, 'Accept-Language': locale },
+    channelId: channelFor(locale).channelId,
     fetchOptions: { cache: 'no-store' },
   });
 
   return data;
+}
+
+/** The locale the proxy resolved for this request; the default outside one. */
+async function requestLocale(): Promise<string> {
+  try {
+    return normalizeLocale((await headers()).get(LOCALE_HEADER));
+  } catch {
+    // Outside a request scope (the proxy, build-time scripts).
+    return normalizeLocale(undefined);
+  }
 }

@@ -8,6 +8,7 @@ import { toCartErrorMessage, toSubmissionErrorMessage } from '~/lib/cart/error-m
 import { removeLineItem, updateLineItemQuantity } from '~/lib/cart/mutations';
 import { revalidateCart } from '~/lib/cart/revalidate';
 import { clearCartId, getCartId } from '~/lib/cart/session';
+import { activeLocale } from '~/lib/currency';
 
 /**
  * Quantity and removal, as one action over one form.
@@ -60,7 +61,7 @@ export async function updateLineItem(
   }
 
   const lineItemId = String(formData.get('lineItemId') ?? '');
-  const cart = await getCart(cartId);
+  const cart = await getCart(cartId, await activeLocale());
   const line = cart?.items.find((item) => item.id === lineItemId);
 
   if (!line) {

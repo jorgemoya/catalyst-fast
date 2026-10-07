@@ -145,4 +145,20 @@ test.describe('locale', () => {
     await expect(page).toHaveURL(new RegExp(`/es${CATEGORY}$`));
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   });
+
+  /*
+   * Catalyst's identification tags (upstream #3239, #3246), which BigCommerce
+   * Support uses to recognise a storefront and its channel.
+   */
+  test('identifies the store, channel and hosting in meta tags', async ({ page }) => {
+    for (const path of ['/', '/es/']) {
+      await page.goto(path);
+
+      for (const name of ['platform', 'store_hash', 'channel_id', 'hosting']) {
+        await expect(page.locator(`meta[name="${name}"]`)).toHaveAttribute('content', /\S/u);
+      }
+
+      await expect(page.locator('meta[name="platform"]')).toHaveAttribute('content', 'bigcommerce.catalyst');
+    }
+  });
 });

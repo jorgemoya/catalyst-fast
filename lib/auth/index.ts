@@ -27,7 +27,7 @@ import { loginWithJwt, loginWithPassword, logoutCustomer } from './mutations';
  * hand-rolling. The guest cart cookie needs none of that — it holds an
  * unguessable id that *is* the capability — which is why the two stayed separate.
  *
- * **The cart id is not on the session.** It stays in `cf.cart` for guests and
+ * **The cart id is not on the session.** It stays in the `cf.cart.<channel>` cookie for guests and
  * customers alike. The plan anticipated moving it here; that turned out to be
  * unnecessary and worse. BigCommerce merges the guest cart itself when `login`
  * is given `guestCartEntityId`, so all that is needed is to write the returned id

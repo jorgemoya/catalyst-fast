@@ -4,6 +4,8 @@ import { mutate } from '~/lib/bigcommerce';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { resolveAttribution } from '~/lib/analytics/attribution';
 import { getCartId } from '~/lib/cart/session';
+import { activeLocale } from '~/lib/currency';
+import { localizeHref } from '~/lib/i18n/href';
 import { getTForAction } from '~/lib/i18n/server';
 import { setServerToast } from '~/lib/server-toast';
 
@@ -65,7 +67,9 @@ async function backToCart(request: NextRequest, message?: string): Promise<NextR
     await setServerToast({ variant: 'error', message });
   }
 
-  return NextResponse.redirect(new URL('/cart', request.url), {
+  // Back to the cart the shopper came from — their locale's, and so their
+  // channel's. An unprefixed `/cart` sent Spanish shoppers to the English one.
+  return NextResponse.redirect(new URL(localizeHref('/cart/', await activeLocale()), request.url), {
     status: 302,
     headers: NO_STORE,
   });

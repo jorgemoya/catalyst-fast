@@ -9,7 +9,7 @@ import type { DefaultSession } from 'next-auth';
  * gets hold of the cookie — a log, a proxy, a browser extension. Encryption is
  * the one thing here genuinely worth not hand-rolling.
  *
- * **The cart id is deliberately absent.** It lives in the `cf.cart` cookie for
+ * **The cart id is deliberately absent.** It lives in the `cf.cart.<channel>` cookie for
  * signed-in and guest shoppers alike; see `lib/auth/config.ts`.
  */
 declare module 'next-auth' {
