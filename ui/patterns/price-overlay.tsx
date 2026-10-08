@@ -1,4 +1,6 @@
 import { getFormatCurrency } from '~/lib/i18n/server';
+import { connection } from 'next/server';
+
 import { getPersonalizedPrice } from '~/data/customer/pricing';
 import { type OptionValueId, getProductPrice } from '~/data/pricing';
 import { getStoreSettings } from '~/data/settings';
@@ -33,6 +35,16 @@ export async function PriceOverlay({
   productId: number;
   optionValueIds?: readonly OptionValueId[];
 }) {
+  /*
+   * Request-time, like the default price beside it (`StreamedDefaultVariant`).
+   * Without this the overlay was cached *with the page*: a converted price
+   * stayed in the browser's copy, and its 5-minute `stale` became the page's
+   * shortest — capping the whole product page at five minutes for any shopper
+   * on another currency instead of an hour. Every price on the product page now
+   * streams on each view.
+   */
+  await connection();
+
   const [settings, selected, fallback] = await Promise.all([
     getStoreSettings(),
     getSelectedCurrency(),

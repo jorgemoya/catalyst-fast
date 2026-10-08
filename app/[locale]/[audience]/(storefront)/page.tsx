@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 
 import { getFeaturedProducts, getNewestProducts } from '~/data/products';
 import { getStoreSettings } from '~/data/settings';
-import { getDefaultCurrency, getSelectedCurrency } from '~/lib/currency';
+import { getDefaultCurrency } from '~/lib/currency';
 import { Link } from '~/ui/primitives/link';
 import { ProductGrid, ProductGridSkeleton } from '~/ui/patterns/product-card';
 import { NewsletterForm } from '~/ui/patterns/newsletter-form';
@@ -17,9 +17,9 @@ import { NewsletterForm } from '~/ui/patterns/newsletter-form';
  * its own data, and the page owns boundary placement rather than a section
  * component owning it internally.
  *
- * Every section here reads from a `'use cache'` function with `stale: 300`, so
- * all of it lands in the prerendered shell and a warm request makes zero
- * BigCommerce calls.
+ * Every section reads shared, cached data and nothing per shopper — the product
+ * rows deliberately show no prices — so all of it lands in the prerendered
+ * shell and a warm request makes zero BigCommerce calls.
  */
 export default async function HomePage() {
   const t = await getT();
@@ -32,29 +32,14 @@ export default async function HomePage() {
         cta={{ href: '/shop-all/', label: t('Common.shopAll') }}
         title={t('Home.featuredProducts')}
       >
-        {/* Cached default-currency grid in the shell, the shopper's currency
-            streamed over it. Inner boundary because a fallback must not itself
-            suspend — the Phase 0 spike. */}
-        <Suspense
-          fallback={
-            <Suspense fallback={<ProductGridSkeleton count={4} />}>
-              <FeaturedProducts />
-            </Suspense>
-          }
-        >
-          <FeaturedProductsSelected />
+        <Suspense fallback={<ProductGridSkeleton count={4} />}>
+          <FeaturedProducts />
         </Suspense>
       </Section>
 
       <Section cta={{ href: '/shop-all/?sort=newest', label: t('Home.seeWhatsNew') }} title={t('Home.newArrivals')}>
-        <Suspense
-          fallback={
-            <Suspense fallback={<ProductGridSkeleton count={4} />}>
-              <NewestProducts />
-            </Suspense>
-          }
-        >
-          <NewestProductsSelected />
+        <Suspense fallback={<ProductGridSkeleton count={4} />}>
+          <NewestProducts />
         </Suspense>
       </Section>
 
@@ -142,9 +127,12 @@ function Section({
 }
 
 /**
- * The cached, default-currency grid. No cookie read, so it prerenders and lands
- * in the static shell — which is what keeps the home page free for the
- * overwhelming majority who never touch the currency switcher.
+ * Merchandising rows, **without prices**. Nothing here depends on the shopper —
+ * not even currency — so each row is one cached entry shared by everyone and
+ * the whole home page is the prerendered shell; only the cart badge and
+ * account menu stream per shopper. Prices are on the product page, where they
+ * stream fresh. The default currency only keys the cached query (BigCommerce
+ * returns prices regardless); it's never displayed.
  */
 async function FeaturedProducts() {
   const t = await getT();
@@ -157,32 +145,7 @@ async function FeaturedProducts() {
 
   // `priority` only here: this is the first grid on the page, so its first row
   // holds the LCP candidate.
-  return <ProductGrid priority products={products} />;
-}
-
-/** The shopper's currency. A hole, streamed over the cached grid above. */
-async function FeaturedProductsSelected() {
-  const t = await getT();
-
-  const products = await getFeaturedProducts(await getSelectedCurrency(), 8);
-
-  if (products.length === 0) {
-    return <p className="text-sm text-muted">{t('Home.noFeatured')}</p>;
-  }
-
-  return <ProductGrid priority products={products} />;
-}
-
-async function NewestProductsSelected() {
-  const t = await getT();
-
-  const products = await getNewestProducts(await getSelectedCurrency(), 8);
-
-  if (products.length === 0) {
-    return <p className="text-sm text-muted">{t('Home.noNewest')}</p>;
-  }
-
-  return <ProductGrid products={products} />;
+  return <ProductGrid prices={false} priority products={products} />;
 }
 
 async function NewestProducts() {
@@ -194,5 +157,5 @@ async function NewestProducts() {
     return <p className="text-sm text-muted">{t('Home.noNewest')}</p>;
   }
 
-  return <ProductGrid products={products} />;
+  return <ProductGrid prices={false} products={products} />;
 }

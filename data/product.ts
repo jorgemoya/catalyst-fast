@@ -8,7 +8,6 @@ import { query } from '~/lib/bigcommerce';
 import { type CatalogFetcher, restrictedQuery } from '~/lib/bigcommerce/restricted';
 import { removeEdgesAndNodes } from '~/lib/bigcommerce/client';
 import { ProductOptionsFragment } from '~/lib/bigcommerce/fragments/product-options';
-import { toCurrencyCode } from '~/lib/bigcommerce/currency-code';
 import { graphql } from '~/lib/bigcommerce/graphql';
 import { tags } from '~/lib/cache/tags';
 
@@ -277,7 +276,7 @@ async function restrictedProduct(entityId: number): Promise<Product | null> {
 /* ── Related products ─────────────────────────────────────────────────────── */
 
 const RelatedProductsQuery = graphql(`
-  query RelatedProducts($entityId: Int!, $currencyCode: currencyCode) {
+  query RelatedProducts($entityId: Int!) {
     site {
       product(entityId: $entityId) {
         relatedProducts(first: 8) {
@@ -297,16 +296,6 @@ const RelatedProductsQuery = graphql(`
                 averageRating
                 numberOfReviews
               }
-              prices(currencyCode: $currencyCode) {
-                price {
-                  value
-                  currencyCode
-                }
-                basePrice {
-                  value
-                  currencyCode
-                }
-              }
             }
           }
         }
@@ -321,23 +310,25 @@ export interface RelatedProduct {
   href: string;
   image?: { src: string; alt: string };
   brand?: string;
-  price: number | null;
-  currencyCode: string;
   rating: number;
   numberOfReviews: number;
 }
 
+/**
+ * No prices: related cards are merchandising, and the price is live on the
+ * product's own page. Without them nothing here varies by currency, so one entry
+ * serves every shopper.
+ */
 async function loadRelatedProducts(
   fetchCatalog: CatalogFetcher,
   entityId: number,
-  currency: string,
 ): Promise<RelatedProduct[]> {
   cacheLife('product');
   cacheTag(tags.product(entityId), tags.products);
 
   const data = await fetchCatalog({
     document: RelatedProductsQuery,
-    variables: { entityId, currencyCode: toCurrencyCode(currency) },
+    variables: { entityId },
     locale: await activeLocale(),
   });
 
@@ -350,8 +341,6 @@ async function loadRelatedProducts(
         ? { src: related.defaultImage.url, alt: related.defaultImage.altText }
         : undefined,
       brand: related.brand?.name ?? undefined,
-      price: related.prices?.price.value ?? null,
-      currencyCode: related.prices?.price.currencyCode ?? 'USD',
       rating: related.reviewSummary.averageRating,
       numberOfReviews: related.reviewSummary.numberOfReviews,
     }),
@@ -360,36 +349,27 @@ async function loadRelatedProducts(
 
 // cache-audit: dispatch — picks the shared or the customer-group catalog by the
 // `[audience]` root param; both branches below carry a cache directive.
-export async function getRelatedProducts(
-  entityId: number,
-  currency: string,
-): Promise<RelatedProduct[]> {
+export async function getRelatedProducts(entityId: number): Promise<RelatedProduct[]> {
   return (await currentAudience()) === 'restricted'
-    ? restrictedRelatedProducts(entityId, currency)
-    : sharedRelatedProducts(entityId, currency);
+    ? restrictedRelatedProducts(entityId)
+    : sharedRelatedProducts(entityId);
 }
 
 /** Shared catalog — guests and every group outside `RESTRICTED_CATALOG_GROUPS`. */
-async function sharedRelatedProducts(
-  entityId: number,
-  currency: string,
-): Promise<RelatedProduct[]> {
+async function sharedRelatedProducts(entityId: number): Promise<RelatedProduct[]> {
   'use cache: remote';
 
-  return loadRelatedProducts(query, entityId, currency);
+  return loadRelatedProducts(query, entityId);
 }
 
 /**
  * Customer-group catalog — fetched with the shopper's token, so it lives only in
  * a private scope (browser memory, never a shared server cache).
  */
-async function restrictedRelatedProducts(
-  entityId: number,
-  currency: string,
-): Promise<RelatedProduct[]> {
+async function restrictedRelatedProducts(entityId: number): Promise<RelatedProduct[]> {
   'use cache: private';
 
-  return loadRelatedProducts(restrictedQuery, entityId, currency);
+  return loadRelatedProducts(restrictedQuery, entityId);
 }
 
 /* ── Reviews (read path) ──────────────────────────────────────────────────── */

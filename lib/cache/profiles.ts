@@ -88,15 +88,18 @@ export const SHELL_PROFILES = [
 export const cacheProfiles = {
   // ── In the static shell (stale >= MIN_SHELL_STALE) ──────────────────────────
   /*
-   * **`stale: 3600` on everything a product or unfiltered listing page
-   * caches** — settings, navigation, product, reviews, listing, session. `stale` is *client-side only*: how long the browser keeps a
-   * visited page before asking the server again, and the shortest `stale` in a
-   * page wins for the whole page. These are the profiles a product page is made
-   * of, so together they let a revisit within the hour render with no request
-   * and no skeleton. The parts that genuinely change by the minute — default
-   * price and stock — are not cached into the page at all; they stream at
-   * request time into their own boundary (`StreamedDefaultVariant`). The server
-   * keeps refreshing on `revalidate` regardless; a reload always gets it.
+   * **`stale: 3600` on everything a product page caches** — settings,
+   * navigation, product, reviews, session. `stale` is *client-side only*: how
+   * long the browser keeps a visited page before asking the server again, and
+   * the shortest `stale` in a page wins for the whole page. Together they let a
+   * product revisited within the hour render with no request and no skeleton.
+   * The parts that genuinely change by the minute — default price and stock —
+   * are not cached into the product page at all; they stream at request time
+   * into their own boundary (`StreamedDefaultVariant`). The server keeps
+   * refreshing on `revalidate` regardless; a reload always gets it.
+   *
+   * Listing grids are the deliberate exception (`listing`, 10 minutes): they
+   * carry card prices, which shouldn't sit in a tab for an hour.
    */
   /** Site settings, currencies, tax display, inventory display settings. */
   settings: { stale: 3600, revalidate: 3600, expire: 86_400 },
@@ -109,23 +112,24 @@ export const cacheProfiles = {
   /** Product reviews (read path). */
   reviews: { stale: 3600, revalidate: 3600, expire: 86_400 },
   /**
-   * Prices. On the product page they render at request time, so this `stale`
-   * no longer limits how long that page is kept; listing cards still carry
-   * their price in the shell. Personalized prices never come through here — see
-   * `data/customer/pricing.ts`.
+   * The product page's price, read at request time (`StreamedDefaultVariant`),
+   * so this `stale` doesn't limit how long that page is kept. Card prices live
+   * in the listing data instead (`listing`). Personalized prices never come
+   * through here — see `data/customer/pricing.ts`.
    */
   price: { stale: 300, revalidate: 300, expire: 3600 },
   /**
    * Unfiltered / default-key listing pages, which we want in the shell.
    *
-   * `stale: 3600` like the product page, so a category revisited within the
-   * hour renders from the browser. Unlike the product page, the grid *is* the
-   * page and can't stream separately, so card prices and out-of-stock badges
-   * can be up to an hour old on such a revisit. Accepted: the server still
-   * refreshes every `revalidate`, a reload gets it, and the product page a
-   * shopper clicks through to always streams live price and stock.
+   * **Card prices are cached with the grid**, so this profile is a price
+   * lifetime: refreshed from BigCommerce every 5 minutes, kept in a tab for
+   * 10. Streaming card prices per view was tried and dropped — a request-time
+   * render on every listing view and a row of placeholders filling in, for a
+   * number nobody pays: the product page streams the live price, and
+   * BigCommerce recalculates at add-to-cart. Past 10 minutes a revisit fetches
+   * the grid again; hover prefetching usually starts that before the click.
    */
-  listing: { stale: 3600, revalidate: 600, expire: 7200 },
+  listing: { stale: 600, revalidate: 300, expire: 7200 },
 
   // ── Streamed holes by construction (stale < MIN_SHELL_STALE) ───────────────
   /**

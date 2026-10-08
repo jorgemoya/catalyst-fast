@@ -22,15 +22,23 @@ interface Props {
    * settings reads.
    */
   compareEnabled?: boolean;
+  /**
+   * `false` for merchandising rows that show no price (home). The price shown
+   * is the one cached with the grid — 5 minutes on the server, 10 in the
+   * browser (`listing`) — since a card price is a browsing aid, not the price
+   * anyone pays: the product page streams the live one, and BigCommerce
+   * recalculates at add-to-cart.
+   */
+  showPrice?: boolean;
 }
 
 /**
  * A single product tile.
  *
- * A plain Server Component with nine props, versus Catalyst's card sitting inside
- * a 27-prop section. It takes a resolved domain model rather than fetching, since
- * cards always render as part of a list whose single query already returned
- * pricing inline — a card that fetched its own price would turn one request into N.
+ * A plain Server Component, versus Catalyst's card sitting inside a 27-prop
+ * section. It takes a resolved domain model rather than fetching, since cards
+ * always render as part of a list whose single query already returned pricing
+ * inline — a card that fetched its own price would turn one request into N.
  */
 export async function ProductCard({
   product,
@@ -38,6 +46,7 @@ export async function ProductCard({
   showRating = true,
   sizes,
   compareEnabled = false,
+  showPrice = true,
 }: Props) {
   const t = await getT();
 
@@ -83,7 +92,7 @@ export async function ProductCard({
           <Rating numberOfReviews={product.numberOfReviews} rating={product.rating} />
         )}
 
-        <PriceLabel className="mt-0.5" price={product.price} />
+        {showPrice && <PriceLabel className="mt-0.5" price={product.price} />}
 
         {product.inventoryMessage && (
           <p className="text-xs text-out-of-stock">{product.inventoryMessage}</p>
@@ -124,12 +133,15 @@ export function ProductGrid({
   showRating,
   className,
   compareEnabled = false,
+  prices = true,
 }: {
   products: ProductCardModel[];
   priority?: boolean;
   showRating?: boolean;
   className?: string;
   compareEnabled?: boolean;
+  /** `false` for grids that show no prices at all (home). */
+  prices?: boolean;
 }) {
   return (
     <ul className={cn('grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-4', className)}>
@@ -140,6 +152,7 @@ export function ProductGrid({
             // Only the first row is eligible for LCP; priority on everything
             // would deprioritize the one image that actually matters.
             priority={priority && index < 4}
+            showPrice={prices}
             product={product}
             showRating={showRating}
           />

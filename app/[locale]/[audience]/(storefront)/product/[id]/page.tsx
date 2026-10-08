@@ -204,8 +204,7 @@ async function ProductDetail({ params }: Props) {
         </section>
       )}
 
-      {/* Owns its own nested boundaries — cached default currency in the shell,
-          the shopper's currency streamed over it. */}
+      {/* Cached with the page; each card's price streams separately. */}
       <RelatedProductsRegion productId={id} />
 
       <Suspense fallback={<ProductReviewsSkeleton />}>
